@@ -7,10 +7,8 @@
 int main(int argc, char *argv[]) {
 	TidalEngine engine;
 	if (engine.init(argc, argv) < 0) {
-		SDL_Log("SDL error:");
-		SDL_Log(SDL_GetError());
-		SDL_Log("PHYSFS error:");
-		SDL_Log(PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+		SDL_Log("SDL error: %s", SDL_GetError());
+		SDL_Log("PHYSFS error: %s", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
 		return 1;
 	}
 	engine.run();

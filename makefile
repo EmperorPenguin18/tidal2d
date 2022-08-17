@@ -1,8 +1,8 @@
 build: src/*.cc
-	g++ -g -Og -D DEBUG -l SDL2 -l physfs src/*.cc -o tidalpp
+	g++ -g -Og -D DEBUG -l SDL2 -l physfs -l cjson src/*.cc -o tidalpp
 
 release: src/*.cc
-	g++ -O3 -l SDL2 -l physfs src/*.cc -o tidalpp
+	g++ -O3 -l SDL2 -l physfs -l cjson src/*.cc -o tidalpp
 
 install: src/*.h tidalpp
 	mkdir -p /usr/include/tidal
