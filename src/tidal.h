@@ -6,6 +6,7 @@
 #include <SDL2/SDL.h>
 #include <physfs.h>
 #include <cjson/cJSON.h>
+#include <SDL2/SDL_ttf.h>
 
 class TidalEngine {
 	public:
@@ -23,6 +24,13 @@ class TidalEngine {
 			cJSON* json;
 			SDL_Rect dst;
 			SDL_Texture* texture;
+			SDL_Texture* text;
+		};
+		struct Font {
+			char* name;
+			char* raw;
+			SDL_RWops* rw;
+			TTF_Font* data;
 		};
 	private:
 		unsigned int m_width;
@@ -34,6 +42,8 @@ class TidalEngine {
 		bool m_running;
 		Object* m_objects;
 		size_t m_objects_num;
+		Font* m_fonts;
+		size_t m_fonts_num;
 
 		void cleanup();
 		int readfiles(const char*);
@@ -44,4 +54,5 @@ class TidalEngine {
 		char* read_data(const char*, size_t*);
 		int create_object(char*, size_t);
 		int create_texture(SDL_Surface*, const char*);
+		int create_font(char*, size_t, int, const char*);
 };

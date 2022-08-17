@@ -12,6 +12,8 @@ TidalEngine::TidalEngine() {
 	m_textures_num = 0;
 	m_objects = NULL;
 	m_objects_num = 0;
+	m_fonts = NULL;
+	m_fonts_num = 0;
 }
 
 TidalEngine::~TidalEngine() {
@@ -22,6 +24,10 @@ int TidalEngine::init(int argc, char *argv[]) {
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) return -1;
 #ifdef DEBUG
 	SDL_Log("SDL initialized");
+#endif
+	if (TTF_Init() < 0) return -1;
+#ifdef DEBUG
+	SDL_Log("SDL_ttf initialized");
 #endif
 	if (SDL_CreateWindowAndRenderer(m_width, m_height, 0, &m_window, &m_renderer) < 0) return -1;
 #ifdef DEBUG
@@ -69,8 +75,21 @@ void TidalEngine::cleanup() {
 		free(m_textures[i].name);
 	}
 	free(m_textures);
+	for (int i = 0; i < m_objects_num; i++) {
+		cJSON_Delete(m_objects[i].json);
+		SDL_DestroyTexture(m_objects[i].text);
+	}
+	free(m_objects);
+	for (int i = 0; i < m_fonts_num; i++) {
+		TTF_CloseFont(m_fonts[i].data);
+		SDL_RWclose(m_fonts[i].rw);
+		free(m_fonts[i].raw);
+		free(m_fonts[i].name);
+	}
+	free(m_fonts);
 	SDL_DestroyRenderer(m_renderer);
 	SDL_DestroyWindow(m_window);
+	TTF_Quit();
 	SDL_Quit();
 	SDL_Log("Cleanup complete");
 }
@@ -127,7 +146,7 @@ int TidalEngine::readfiles(const char *path) {
 #ifdef DEBUG
 			SDL_Log("Surface successfully created");
 #endif
-			create_texture(surface, path);
+			if (create_texture(surface, path) < 0) return -1;
 			SDL_FreeSurface(surface);
 			free(data);
 		} else if (strcmp(ext, "json") == 0) {
@@ -137,8 +156,13 @@ int TidalEngine::readfiles(const char *path) {
 #ifdef DEBUG
 			SDL_Log("Contents of json file:\n%s", string);
 #endif
-			create_object(string, len);
+			if (create_object(string, len) < 0) return -1;
 			free(string);
+		} else if (strcmp(ext, "ttf") == 0) {
+			size_t len = 0;
+			char* data = read_data(path, &len);
+			if (data == NULL) return -1;
+			if (create_font(data, len, 24, path) < 0) return -1; //make size dynamic
 		}
 		//Add more filetypes later
 	}
@@ -165,7 +189,10 @@ void TidalEngine::draw() {
 	SDL_SetRenderDrawBlendMode(m_renderer, SDL_BLENDMODE_NONE);
 	SDL_SetRenderDrawColor(m_renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(m_renderer);
-	for (int i = 0; i < m_objects_num; i++) SDL_RenderCopy(m_renderer, (m_objects + i)->texture, NULL, &((m_objects + i)->dst));
+	for (int i = 0; i < m_objects_num; i++) {
+		SDL_RenderCopy(m_renderer, (m_objects + i)->texture, NULL, &((m_objects + i)->dst));
+		SDL_RenderCopy(m_renderer, (m_objects + i)->text, NULL, &((m_objects + i)->dst));
+	}
 	SDL_RenderPresent(m_renderer);
 }
 
@@ -173,11 +200,38 @@ int TidalEngine::create_object(char* string, size_t len) {
 	m_objects_num++;
 	m_objects = (Object*)realloc(m_objects, m_objects_num*sizeof(Object));
 	(m_objects + m_objects_num-1)->json = cJSON_ParseWithLength(string, len);
+	const cJSON* json = (m_objects + m_objects_num-1)->json;
 	(m_objects + m_objects_num-1)->dst.x = 0;
 	(m_objects + m_objects_num-1)->dst.y = 0;
-	(m_objects + m_objects_num-1)->dst.w = cJSON_GetObjectItemCaseSensitive((m_objects + m_objects_num-1)->json, "width")->valueint;
-	(m_objects + m_objects_num-1)->dst.h = cJSON_GetObjectItemCaseSensitive((m_objects + m_objects_num-1)->json, "height")->valueint;
-	for (int i = 0; i < m_textures_num; i++) if (strcmp((m_textures+i)->name, cJSON_GetObjectItemCaseSensitive((m_objects + m_objects_num-1)->json, "sprite")->valuestring) == 0) (m_objects + m_objects_num-1)->texture = (m_textures+i)->data; //improve
+	(m_objects + m_objects_num-1)->dst.w = cJSON_GetObjectItemCaseSensitive(json, "width")->valueint;
+	(m_objects + m_objects_num-1)->dst.h = cJSON_GetObjectItemCaseSensitive(json, "height")->valueint;
+	(m_objects + m_objects_num-1)->texture = NULL;
+	for (int i = 0; i < m_textures_num; i++) {
+		if (strcmp((m_textures+i)->name, cJSON_GetObjectItemCaseSensitive(json, "sprite")->valuestring) == 0) {
+			(m_objects + m_objects_num-1)->texture = (m_textures+i)->data; //improve
+		}
+	}
+#ifdef DEBUG
+	if ((m_objects + m_objects_num-1)->texture != NULL) SDL_Log("Texture attached");
+#endif
+	(m_objects + m_objects_num-1)->text = NULL;
+	for (int i = 0; i < m_fonts_num; i++) { //improve
+		if (strcmp((m_fonts+i)->name, cJSON_GetObjectItemCaseSensitive(json, "font")->valuestring) == 0) {
+			TTF_Font* font = (m_fonts+i)->data;
+#ifdef DEBUG
+			SDL_Log("Font height: %d", TTF_FontHeight(font));
+#endif
+			SDL_Color color = {255, 255, 255, 255}; //make dynamic
+			const char* string = cJSON_GetObjectItemCaseSensitive(json, "text")->valuestring;
+#ifdef DEBUG
+			SDL_Log("Text to output: %s", string);
+#endif
+			SDL_Surface* text = TTF_RenderUTF8_Solid_Wrapped(font, string, color, 0);
+			if (text == NULL) return -1;
+			(m_objects + m_objects_num-1)->text = SDL_CreateTextureFromSurface(m_renderer, text);
+			SDL_FreeSurface(text);
+		}
+	}
 #ifdef DEBUG
 	SDL_Log("Object successfully created");
 #endif
@@ -193,6 +247,21 @@ int TidalEngine::create_texture(SDL_Surface* surface, const char* path) {
 	if (!m_textures->data) return -1;
 #ifdef DEBUG
 	SDL_Log("Texture successfully created");
+#endif
+	return 0;
+}
+
+int TidalEngine::create_font(char* data, size_t len, int ptsize, const char* path) {
+	m_fonts_num++;
+	m_fonts = (Font*)realloc(m_fonts, m_fonts_num*sizeof(Font));
+	(m_fonts + m_fonts_num-1)->raw = data;
+	(m_fonts + m_fonts_num-1)->rw = SDL_RWFromMem((m_fonts + m_fonts_num-1)->raw, len);
+	(m_fonts + m_fonts_num-1)->data = TTF_OpenFontRW((m_fonts + m_fonts_num-1)->rw, 0, ptsize);
+	(m_fonts + m_fonts_num-1)->name = (char*)malloc(strlen(path+1));
+	strcpy((m_fonts + m_fonts_num-1)->name, path+1);
+	if (!m_fonts->data) return -1;
+#ifdef DEBUG
+	SDL_Log("Font successfully created");
 #endif
 	return 0;
 }
