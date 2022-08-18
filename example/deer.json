@@ -6,5 +6,6 @@
 	"height": 400,
 	"font": "DejaVuSans.ttf",
 	"text": "Hello World!",
-	"shape": "box"
+	"shape": "box",
+	"sound": "Front_Center.wav"
 }

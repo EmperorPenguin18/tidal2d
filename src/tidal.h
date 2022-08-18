@@ -8,6 +8,7 @@
 #include <cjson/cJSON.h>
 #include <SDL2/SDL_ttf.h>
 #include <chipmunk/chipmunk.h>
+#include <SDL2/SDL_mixer.h>
 
 class TidalEngine {
 	public:
@@ -28,12 +29,17 @@ class TidalEngine {
 			SDL_Texture* text;
 			cpBody* body;
 			cpShape* shape;
+			SDL_AudioDeviceID audiodev;
 		};
 		struct Font {
 			char* name;
 			char* raw;
 			SDL_RWops* rw;
 			TTF_Font* data;
+		};
+		struct Audio {
+			char* name;
+			Mix_Chunk* data;
 		};
 	private:
 		unsigned int m_width;
@@ -48,6 +54,8 @@ class TidalEngine {
 		Font* m_fonts;
 		size_t m_fonts_num;
 		cpSpace* m_space;
+		Audio* m_audio;
+		size_t m_audio_num;
 
 		void cleanup();
 		int readfiles(const char*);
@@ -60,4 +68,5 @@ class TidalEngine {
 		int create_object(char*, size_t);
 		int create_texture(SDL_Surface*, const char*);
 		int create_font(char*, size_t, int, const char*);
+		int create_audio(char*, size_t, const char*);
 };

@@ -15,6 +15,8 @@ TidalEngine::TidalEngine() {
 	m_fonts = NULL;
 	m_fonts_num = 0;
 	m_space = NULL;
+	m_audio = NULL;
+	m_audio_num = 0;
 }
 
 TidalEngine::~TidalEngine() {
@@ -29,6 +31,10 @@ int TidalEngine::init(int argc, char *argv[]) {
 	if (TTF_Init() < 0) return -1;
 #ifdef DEBUG
 	SDL_Log("SDL_ttf initialized");
+#endif
+	if (Mix_Init(0) < 0) return -1;
+#ifdef DEBUG
+	SDL_Log("SDL_mixer initialized");
 #endif
 	m_window = SDL_CreateWindow("TidalEngine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, m_width, m_height, 0); //change title
 	if (!m_window) return -1;
@@ -106,6 +112,7 @@ void TidalEngine::cleanup() {
 		SDL_DestroyTexture(m_objects[i].text);
 		cpShapeFree(m_objects[i].shape);
 		cpBodyFree(m_objects[i].body);
+		SDL_CloseAudioDevice(m_objects[i].audiodev);
 	}
 	free(m_objects);
 	for (int i = 0; i < m_fonts_num; i++) {
@@ -115,9 +122,16 @@ void TidalEngine::cleanup() {
 		free(m_fonts[i].name);
 	}
 	free(m_fonts);
+	for (int i = 0; i < m_audio_num; i++) {
+		Mix_FreeChunk(m_audio[i].data);
+		free(m_audio[i].name);
+	}
+	free(m_audio);
 	cpSpaceFree(m_space);
 	SDL_DestroyRenderer(m_renderer);
 	SDL_DestroyWindow(m_window);
+	Mix_CloseAudio();
+	Mix_Quit();
 	TTF_Quit();
 	SDL_Quit();
 	SDL_Log("Cleanup complete");
@@ -165,10 +179,10 @@ int TidalEngine::readfiles(const char *path) {
 		SDL_Log("Is a regular file");
 #endif
 		const char* ext = getextension(path);
+		size_t len = 0;
+		char* data = read_data(path, &len);
+		if (data == NULL) return -1;
 		if (strcmp(ext, "bmp") == 0) {
-			size_t len = 0;
-			char* data = read_data(path, &len);
-			if (data == NULL) return -1;
 			SDL_RWops* rw = SDL_RWFromMem(data, len);
 			SDL_Surface* surface = SDL_LoadBMP_RW(rw, SDL_TRUE);
 			if (!surface) return -1;
@@ -179,19 +193,15 @@ int TidalEngine::readfiles(const char *path) {
 			SDL_FreeSurface(surface);
 			free(data);
 		} else if (strcmp(ext, "json") == 0) {
-			size_t len = 0;
-			char* string = read_data(path, &len);
-			if (string == NULL) return -1;
 #ifdef DEBUG
-			SDL_Log("Contents of json file:\n%s", string);
+			SDL_Log("Contents of json file:\n%s", data);
 #endif
-			if (create_object(string, len) < 0) return -1;
-			free(string);
+			if (create_object(data, len) < 0) return -1;
+			free(data);
 		} else if (strcmp(ext, "ttf") == 0) {
-			size_t len = 0;
-			char* data = read_data(path, &len);
-			if (data == NULL) return -1;
 			if (create_font(data, len, 24, path) < 0) return -1; //make size dynamic
+		} else if (strcmp(ext, "wav") == 0) {
+			if (create_audio(data, len, path) < 0) return -1;
 		}
 		//Add more filetypes later
 	}
@@ -273,6 +283,14 @@ int TidalEngine::create_object(char* string, size_t len) {
 		cpShapeSetFriction((m_objects + m_objects_num-1)->shape, 0.7);
 	} //add other shapes
 #ifdef DEBUG
+	SDL_Log("Physics applied to object");
+#endif
+	for (int i = 0; i < m_audio_num; i++) { //temporary
+		if (strcmp((m_audio+i)->name, cJSON_GetObjectItemCaseSensitive(json, "sound")->valuestring) == 0) {
+			Mix_PlayChannel(-1, (m_audio+i)->data, 0);
+		}
+	}
+#ifdef DEBUG
 	SDL_Log("Object successfully created");
 #endif
 	return 0;
@@ -302,6 +320,21 @@ int TidalEngine::create_font(char* data, size_t len, int ptsize, const char* pat
 	if (!m_fonts->data) return -1;
 #ifdef DEBUG
 	SDL_Log("Font successfully created");
+#endif
+	return 0;
+}
+
+int TidalEngine::create_audio(char* data, size_t len, const char* path) {
+	m_audio_num++;
+	m_audio = (Audio*)realloc(m_audio, m_audio_num*sizeof(Audio));
+	Mix_CloseAudio();
+	Mix_OpenAudio(48000, AUDIO_S16SYS, 1, 2048);
+	(m_audio + m_audio_num-1)->data = Mix_LoadWAV_RW(SDL_RWFromMem(data, len), 1);
+	(m_audio + m_audio_num-1)->name = (char*)malloc(strlen(path+1));
+	strcpy((m_audio + m_audio_num-1)->name, path+1);
+	if (!m_audio->data) return -1;
+#ifdef DEBUG
+	SDL_Log("Audio successfully created");
 #endif
 	return 0;
 }
