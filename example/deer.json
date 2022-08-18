@@ -5,5 +5,6 @@
 	"width": 400,
 	"height": 400,
 	"font": "DejaVuSans.ttf",
-	"text": "Hello World!"
+	"text": "Hello World!",
+	"shape": "box"
 }

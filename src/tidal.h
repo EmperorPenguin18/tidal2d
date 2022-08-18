@@ -7,6 +7,7 @@
 #include <physfs.h>
 #include <cjson/cJSON.h>
 #include <SDL2/SDL_ttf.h>
+#include <chipmunk/chipmunk.h>
 
 class TidalEngine {
 	public:
@@ -25,6 +26,8 @@ class TidalEngine {
 			SDL_Rect dst;
 			SDL_Texture* texture;
 			SDL_Texture* text;
+			cpBody* body;
+			cpShape* shape;
 		};
 		struct Font {
 			char* name;
@@ -44,6 +47,7 @@ class TidalEngine {
 		size_t m_objects_num;
 		Font* m_fonts;
 		size_t m_fonts_num;
+		cpSpace* m_space;
 
 		void cleanup();
 		int readfiles(const char*);
@@ -51,6 +55,7 @@ class TidalEngine {
 		void prepend(char*, const char*);
 		void draw();
 		void events();
+		void update();
 		char* read_data(const char*, size_t*);
 		int create_object(char*, size_t);
 		int create_texture(SDL_Surface*, const char*);

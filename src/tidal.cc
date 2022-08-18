@@ -14,6 +14,7 @@ TidalEngine::TidalEngine() {
 	m_objects_num = 0;
 	m_fonts = NULL;
 	m_fonts_num = 0;
+	m_space = NULL;
 }
 
 TidalEngine::~TidalEngine() {
@@ -29,14 +30,22 @@ int TidalEngine::init(int argc, char *argv[]) {
 #ifdef DEBUG
 	SDL_Log("SDL_ttf initialized");
 #endif
-	if (SDL_CreateWindowAndRenderer(m_width, m_height, 0, &m_window, &m_renderer) < 0) return -1;
+	m_window = SDL_CreateWindow("TidalEngine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, m_width, m_height, 0); //change title
+	if (!m_window) return -1;
 #ifdef DEBUG
-	SDL_Log("Window and renderer created");
+	SDL_Log("Window created");
+#endif
+	m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
+	if (!m_renderer) return -1;
+#ifdef DEBUG
+	SDL_Log("Renderer created");
 #endif
 	if (PHYSFS_init(argv[0]) == 0) return -1;
 #ifdef DEBUG
 	SDL_Log("PHYSFS initialized");
 #endif
+	m_space = cpSpaceNew();
+	cpSpaceSetGravity(m_space, cpv(0, -100));
 	if (argc > 2) {
 		SDL_Log("Too many arguments, only one expected");
 		return -1;
@@ -55,8 +64,13 @@ int TidalEngine::init(int argc, char *argv[]) {
 
 void TidalEngine::run() {
 	while (m_running) {
+		Uint64 start = SDL_GetPerformanceCounter();
 		events();
+		update();
 		draw();
+		Uint64 end = SDL_GetPerformanceCounter();
+		float elapsed = (end - start) / (float)SDL_GetPerformanceFrequency();
+		printf("Current FPS: %f\n", 1.0/elapsed);
 	}
 }
 
@@ -66,6 +80,18 @@ void TidalEngine::events() {
 	if (event.type == SDL_QUIT) {
 		m_running = false;
 	}
+}
+
+void TidalEngine::update() {
+	for (int i = 0; i < m_objects_num; i++) {
+		if (m_objects[i].body != NULL) {
+			cpVect pos = cpBodyGetPosition(m_objects[i].body);
+			cpVect vel = cpBodyGetVelocity(m_objects[i].body);
+			m_objects[i].dst.x = pos.x;
+			m_objects[i].dst.y = pos.y;
+		}
+	}
+	cpSpaceStep(m_space, 1.0/60.0);
 }
 
 void TidalEngine::cleanup() {
@@ -78,6 +104,8 @@ void TidalEngine::cleanup() {
 	for (int i = 0; i < m_objects_num; i++) {
 		cJSON_Delete(m_objects[i].json);
 		SDL_DestroyTexture(m_objects[i].text);
+		cpShapeFree(m_objects[i].shape);
+		cpBodyFree(m_objects[i].body);
 	}
 	free(m_objects);
 	for (int i = 0; i < m_fonts_num; i++) {
@@ -87,6 +115,7 @@ void TidalEngine::cleanup() {
 		free(m_fonts[i].name);
 	}
 	free(m_fonts);
+	cpSpaceFree(m_space);
 	SDL_DestroyRenderer(m_renderer);
 	SDL_DestroyWindow(m_window);
 	TTF_Quit();
@@ -232,6 +261,17 @@ int TidalEngine::create_object(char* string, size_t len) {
 			SDL_FreeSurface(text);
 		}
 	}
+#ifdef DEBUG
+	if ((m_objects + m_objects_num-1)->text != NULL) SDL_Log("Font attached");
+#endif
+	(m_objects + m_objects_num-1)->body = NULL;
+	(m_objects + m_objects_num-1)->shape = NULL;
+	if (strcmp(cJSON_GetObjectItemCaseSensitive(json, "shape")->valuestring, "box") == 0) { //set mass and friction dynamically
+		(m_objects + m_objects_num-1)->body = cpSpaceAddBody(m_space, cpBodyNew(1, cpMomentForBox(1, (m_objects + m_objects_num-1)->dst.w, (m_objects + m_objects_num-1)->dst.h)));
+		cpBodySetPosition((m_objects + m_objects_num-1)->body, cpv(0, 0));
+		(m_objects + m_objects_num-1)->shape = cpSpaceAddShape(m_space, cpBoxShapeNew((m_objects + m_objects_num-1)->body, (m_objects + m_objects_num-1)->dst.w, (m_objects + m_objects_num-1)->dst.h, 0));
+		cpShapeSetFriction((m_objects + m_objects_num-1)->shape, 0.7);
+	} //add other shapes
 #ifdef DEBUG
 	SDL_Log("Object successfully created");
 #endif
