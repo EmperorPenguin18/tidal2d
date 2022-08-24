@@ -13,7 +13,7 @@ sha256sums=('14d92bb09c04c0bef9e9028244e70272e6d39cba764402b4e5981d83c5898f87')
 
 build () {
   cd "$srcdir/$pkgname-$pkgver"
-  g++ -O3 -l SDL2 -l physfs -l cjson -l SDL2_ttf -l chipmunk -l SDL2_mixer src/*.cc -o tidalpp
+  gcc -O3 -l SDL2 -l physfs -l cjson -l SDL2_ttf -l chipmunk -l SDL2_mixer src/*.cc -o tidalpp
 }
 
 package () {
