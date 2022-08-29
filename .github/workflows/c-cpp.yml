@@ -13,5 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: install dependencies
+      run: sudo apt-get install -y libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libphysfs-dev libcjson-dev libchipmunk-dev
     - name: make
       run: make release
