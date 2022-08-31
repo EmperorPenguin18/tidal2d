@@ -7,11 +7,11 @@
 int main(int argc, char *argv[]) {
 	Engine* engine = Tidal_init(argc, argv);
 	if (engine == NULL) {
-		SDL_Log("SDL error: %s", SDL_GetError());
-		SDL_Log("PHYSFS error: %s", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+		Tidal_error();
 		return 1;
 	}
 	Tidal_run(engine);
 	Tidal_cleanup(engine);
+	engine = NULL;
 	return 0;
 }

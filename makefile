@@ -1,8 +1,14 @@
+ifeq ($(STATIC),1)
+OPTS = -D STATIC -static lib/*.o
+else
+OPTS = 
+endif
+
 build: src/*.c
-	gcc -g -Og -D DEBUG -l SDL2 -l physfs -l cjson -l SDL2_ttf -l chipmunk -l SDL2_mixer src/*.c -o tidalpp
+	gcc -g -Og -D DEBUG -Wall $(OPTS) src/*.c -o tidalpp
 
 release: src/*.c
-	gcc -O3 -l SDL2 -l physfs -l cjson -l SDL2_ttf -l chipmunk -l SDL2_mixer src/*.c -o tidalpp
+	gcc -O3 $(OPTS) src/*.c -o tidalpp
 
 install: src/*.h tidalpp
 	mkdir -p /usr/include/tidal

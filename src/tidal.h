@@ -6,13 +6,15 @@
 #define __TIDAL_H__
 
 #include <SDL2/SDL.h>
-#include <physfs.h>
 #include <cjson/cJSON.h>
 #include <SDL2/SDL_ttf.h>
 #include <chipmunk/chipmunk.h>
 #include <SDL2/SDL_mixer.h>
-
 #include <stdbool.h>
+
+#ifndef STATIC
+#include <dlfcn.h>
+#endif
 
 struct Texture {
 	char* name;
@@ -26,7 +28,6 @@ struct Object {
 	SDL_Texture* text;
 	cpBody* body;
 	cpShape* shape;
-	SDL_AudioDeviceID audiodev;
 };
 typedef struct Object Object;
 struct Font {
@@ -60,21 +61,8 @@ struct Engine {
 typedef struct Engine Engine;
 
 Engine* Tidal_init(int, char*[]);
-static char* read_data(const char*, size_t*);
-static int read_files(Engine*, const char*);
-static const char* getextension(const char*);
-static void prepend(char*, const char*);
-
-static int create_object(Engine*, char*, size_t);
-static int create_texture(Engine*, SDL_Surface*, const char*);
-static int create_font(Engine*, char*, size_t, int, const char*);
-static int create_audio(Engine*, char*, size_t, const char*);
-
 void Tidal_run(Engine*);
-static void events(Engine*);
-static void update(Engine*);
-static void draw(Engine*);
-
 void Tidal_cleanup(Engine*);
+void Tidal_error();
 
 #endif
