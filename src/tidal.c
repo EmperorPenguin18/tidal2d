@@ -70,6 +70,10 @@ typedef int (*pf_s_init)(Uint32);
 pf_s_init S_Init = NULL;
 typedef void (*pf_s_unloadobject)(void*);
 pf_s_unloadobject S_UnloadObject = NULL;
+typedef void (*pf_s_logdebug)(int, const char*, ...);
+pf_s_logdebug S_LogDebug = NULL;
+typedef void (*pf_s_logsetpriority)(int, SDL_LogPriority);
+pf_s_logsetpriority S_LogSetPriority = NULL;
 void* physfs_lib = NULL;
 typedef const char* (*pf_p_geterrorbycode)(PHYSFS_ErrorCode);
 pf_p_geterrorbycode P_getErrorByCode = NULL;
@@ -197,6 +201,8 @@ static int lib_load() {
 	S_GetError = &SDL_GetError;
 	S_Init = &SDL_Init;
 	S_UnloadObject = &SDL_UnloadObject;
+	S_LogDebug = &SDL_LogDebug;
+	S_LogSetPriority = &SDL_LogSetPriority;
 	P_getErrorByCode = &PHYSFS_getErrorByCode;
 	P_getLastErrorCode = &PHYSFS_getLastErrorCode;
 	P_openRead = &PHYSFS_openRead;
@@ -339,6 +345,10 @@ static int lib_load() {
 	if (!S_Init) return -1;
 	S_UnloadObject = S_LoadFunction(sdl_lib, "SDL_UnloadObject");
 	if (!S_UnloadObject) return -1;
+	S_LogDebug = S_LoadFunction(sdl_lib, "SDL_LogDebug");
+	if (!S_LogDebug) return -1;
+	S_LogSetPriority = S_LoadFunction(sdl_lib, "SDL_LogSetPriority");
+	if (!S_LogSetPriority) return -1;
 	P_openRead = S_LoadFunction(physfs_lib, "PHYSFS_openRead");
 	if (!P_openRead) return -1;
 	P_fileLength = S_LoadFunction(physfs_lib, "PHYSFS_fileLength");
@@ -450,34 +460,23 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	if (lib_load() < 0) return NULL;
 	if (S_Init(SDL_INIT_EVERYTHING) < 0) return NULL;
 #ifdef DEBUG
-	S_Log("SDL initialized");
+	S_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL initialized");
 	if (T_Init() < 0) return NULL;
-#ifdef DEBUG
-	S_Log("SDL_ttf initialized");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_ttf initialized");
 	if (M_Init(0) < 0) return NULL;
-#ifdef DEBUG
-	S_Log("SDL_mixer initialized");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_mixer initialized");
 	if (I_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP) != (IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP)) return NULL;
-#ifdef DEBUG
-	S_Log("SDL_image initialized");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_image initialized");
 	engine->window = S_CreateWindow("TidalEngine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, engine->width, engine->height, 0); //change title
 	if (!engine->window) return NULL;
-#ifdef DEBUG
-	S_Log("Window created");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Window created");
 	engine->renderer = S_CreateRenderer(engine->window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
 	if (!engine->renderer) return NULL;
-#ifdef DEBUG
-	S_Log("Renderer created");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Renderer created");
 	if (P_init(argv[0]) == 0) return NULL;
-#ifdef DEBUG
-	S_Log("PHYSFS initialized");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "PHYSFS initialized");
 	engine->space = C_SpaceNew();
 	C_SpaceSetGravity(engine->space, cpv(0, -100));
 	if (argc > 2) {
@@ -485,47 +484,31 @@ Engine* Tidal_init(int argc, char *argv[]) {
 		return NULL;
 	} else {
 		if (P_mount(argv[1], NULL, 0) == 0) return NULL;
-#ifdef DEBUG
-		S_Log("Path mounted");
-#endif
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Path mounted");
 		if (read_files(engine, "") != 0) return NULL;
 	}
-#ifdef DEBUG
-	S_Log("Files read");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files read");
 	return engine;
 }
 
 static int read_files(Engine* engine, const char *path) {
 	PHYSFS_Stat stat;
 	if (P_stat(path, &stat) == 0) return -1;
-#ifdef DEBUG
-	S_Log("Path stats acquired");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Path stats acquired");
 	if (stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
 		if (path[0] == '.' || path[1] == '.') return 0;
 		char **rc = P_enumerateFiles(path);
-#ifdef DEBUG
-		for (char** i = rc; *i != NULL; i++) printf(" * We've got [%s].\n", *i);
-		S_Log("Dir listed");
-#endif
 		for (char** i = rc; *i != NULL; i++) {
 			*i = (char*)realloc(*i, sizeof(path)+sizeof(*i)+2);
 			prepend(*i, P_getDirSeparator());
 			prepend(*i, path);
 			if (read_files(engine, *i) < 0) return -1;
 		}
-#ifdef DEBUG
-		S_Log("Files loaded");
-#endif
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files loaded");
 		P_freeList(rc);
-#ifdef DEBUG
-		S_Log("List freed");
-#endif
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "List freed");
 	} else if (stat.filetype == PHYSFS_FILETYPE_REGULAR) {
-#ifdef DEBUG
-		S_Log("Is a regular file");
-#endif
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Is a regular file");
 		const char* ext = getextension(path);
 		size_t len = 0;
 		char* data = read_data(path, &len);
@@ -535,9 +518,7 @@ static int read_files(Engine* engine, const char *path) {
 			if (create_texture(engine, rw, path) < 0) return -1;
 			free(data);
 		} else if (strcmp(ext, "json") == 0) {
-#ifdef DEBUG
-			S_Log("Contents of json file:\n%s", data);
-#endif
+			S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Contents of json file:\n%s", data);
 			if (create_object(engine, data, len) < 0) return -1;
 			free(data);
 		} else if (strcmp(ext, "ttf") == 0) {
@@ -563,10 +544,6 @@ static char* read_data(const char* path, size_t* len) {
 
 static const char* getextension(const char* filename) {
 	const char *dot = strrchr(filename, '.');
-#ifdef DEBUG
-	S_Log("getextension() input: %s", filename);
-	S_Log("getextension() output: %s", dot);
-#endif
 	if (!dot || dot == filename) return "";
 	return dot + 1;
 }
@@ -592,30 +569,20 @@ static int create_object(Engine* engine, char* string, size_t len) {
 			(engine->objects + engine->objects_num-1)->texture = (engine->textures+i)->data; //improve
 		}
 	}
-#ifdef DEBUG
-	if ((engine->objects + engine->objects_num-1)->texture != NULL) S_Log("Texture attached");
-#endif
+	if ((engine->objects + engine->objects_num-1)->texture == NULL) return -1;
 	(engine->objects + engine->objects_num-1)->text = NULL;
 	for (int i = 0; i < engine->fonts_num; i++) { //improve
 		if (strcmp((engine->fonts+i)->name, J_GetObjectItemCaseSensitive(json, "font")->valuestring) == 0) {
 			TTF_Font* font = (engine->fonts+i)->data;
-#ifdef DEBUG
-			S_Log("Font height: %d", T_FontHeight(font));
-#endif
 			SDL_Color color = {255, 255, 255, 255}; //make dynamic
 			const char* string = J_GetObjectItemCaseSensitive(json, "text")->valuestring;
-#ifdef DEBUG
-			S_Log("Text to output: %s", string);
-#endif
 			SDL_Surface* text = T_RenderUTF8_Solid_Wrapped(font, string, color, 0);
 			if (text == NULL) return -1;
 			(engine->objects + engine->objects_num-1)->text = S_CreateTextureFromSurface(engine->renderer, text);
 			S_FreeSurface(text);
 		}
 	}
-#ifdef DEBUG
-	if ((engine->objects + engine->objects_num-1)->text != NULL) S_Log("Font attached");
-#endif
+	if ((engine->objects + engine->objects_num-1)->text == NULL) return -1;
 	(engine->objects + engine->objects_num-1)->body = NULL;
 	(engine->objects + engine->objects_num-1)->shape = NULL;
 	if (strcmp(J_GetObjectItemCaseSensitive(json, "shape")->valuestring, "box") == 0) { //set mass and friction dynamically
@@ -624,17 +591,13 @@ static int create_object(Engine* engine, char* string, size_t len) {
 		(engine->objects + engine->objects_num-1)->shape = C_SpaceAddShape(engine->space, C_BoxShapeNew((engine->objects + engine->objects_num-1)->body, (engine->objects + engine->objects_num-1)->dst.w, (engine->objects + engine->objects_num-1)->dst.h, 0));
 		C_ShapeSetFriction((engine->objects + engine->objects_num-1)->shape, 0.7);
 	} //add other shapes
-#ifdef DEBUG
-	S_Log("Physics applied to object");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Physics applied to object");
 	for (int i = 0; i < engine->audio_num; i++) { //temporary
 		if (strcmp((engine->audio+i)->name, J_GetObjectItemCaseSensitive(json, "sound")->valuestring) == 0) {
 			M_PlayChannel(-1, (engine->audio+i)->data, 0);
 		}
 	}
-#ifdef DEBUG
-	S_Log("Object successfully created");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object successfully created");
 	return 0;
 }
 
@@ -645,9 +608,7 @@ static int create_texture(Engine* engine, SDL_RWops* rw, const char* path) {
 	(engine->textures + engine->textures_num-1)->name = (char*)malloc(strlen(path+1));
 	strcpy((engine->textures + engine->textures_num-1)->name, path+1);
 	if (!engine->textures->data) return -1;
-#ifdef DEBUG
-	S_Log("Texture successfully created");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Texture successfully created");
 	return 0;
 }
 
@@ -660,9 +621,7 @@ static int create_font(Engine* engine, char* data, size_t len, int ptsize, const
 	(engine->fonts + engine->fonts_num-1)->name = (char*)malloc(strlen(path+1));
 	strcpy((engine->fonts + engine->fonts_num-1)->name, path+1);
 	if (!engine->fonts->data) return -1;
-#ifdef DEBUG
-	S_Log("Font successfully created");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Font successfully created");
 	return 0;
 }
 
@@ -675,9 +634,7 @@ static int create_audio(Engine* engine, char* data, size_t len, const char* path
 	(engine->audio + engine->audio_num-1)->name = (char*)malloc(strlen(path+1));
 	strcpy((engine->audio + engine->audio_num-1)->name, path+1);
 	if (!engine->audio->data) return -1;
-#ifdef DEBUG
-	S_Log("Audio successfully created");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio successfully created");
 	return 0;
 }
 
@@ -689,7 +646,7 @@ void Tidal_run(Engine* engine) {
 		draw(engine);
 		Uint64 end = S_GetPerformanceCounter();
 		float elapsed = (end - start) / (float)S_GetPerformanceFrequency();
-		printf("Current FPS: %f\n", 1.0/elapsed);
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Current FPS: %f\n", 1.0/elapsed);
 	}
 }
 
@@ -731,9 +688,7 @@ void Tidal_cleanup(Engine* engine) {
 		free(engine->textures[i].name);
 	}
 	free(engine->textures); engine->textures = NULL;
-#ifdef DEBUG
-	S_Log("Textures freed");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Textures freed");
 	for (int i = 0; i < engine->objects_num; i++) {
 		J_Delete(engine->objects[i].json);
 		S_DestroyTexture(engine->objects[i].text);
@@ -741,9 +696,7 @@ void Tidal_cleanup(Engine* engine) {
 		C_BodyFree(engine->objects[i].body);
 	}
 	free(engine->objects); engine->objects = NULL;
-#ifdef DEBUG
-	S_Log("Objects freed");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Objects freed");
 	for (int i = 0; i < engine->fonts_num; i++) {
 		T_CloseFont(engine->fonts[i].data);
 		S_RWclose(engine->fonts[i].rw);
@@ -751,30 +704,22 @@ void Tidal_cleanup(Engine* engine) {
 		free(engine->fonts[i].name);
 	}
 	free(engine->fonts); engine->fonts = NULL;
-#ifdef DEBUG
-	S_Log("Fonts freed");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Fonts freed");
 	for (int i = 0; i < engine->audio_num; i++) {
 		M_FreeChunk(engine->audio[i].data);
 		free(engine->audio[i].name);
 	}
 	free(engine->audio); engine->audio = NULL;
-#ifdef DEBUG
-	S_Log("Audio freed");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio freed");
 	C_SpaceFree(engine->space); engine->space = NULL;
 	S_DestroyRenderer(engine->renderer); engine->renderer = NULL;
 	S_DestroyWindow(engine->window); engine->window = NULL;
-#ifdef DEBUG
-	S_Log("Window freed");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Window freed");
 	I_Quit();
 	M_CloseAudio();
 	M_Quit();
 	T_Quit();
-#ifdef DEBUG
-	S_Log("Libs quit");
-#endif
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Libs quit");
 #ifdef STATIC
 	S_Quit();
 #else
