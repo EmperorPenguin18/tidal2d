@@ -13,9 +13,9 @@ static const char* getextension(const char*);
 static void prepend(char*, const char*);
 
 static int create_object(Engine*, char*, size_t);
-static int create_texture(Engine*, SDL_RWops*, const char*);
+static int create_texture(Engine*, char*, size_t, const char*);
 static int create_font(Engine*, char*, size_t, int, const char*);
-static int create_audio(Engine*, char*, size_t, const char*);
+static int create_audio(Engine*, char*, size_t, const char*, int);
 
 static void events(Engine*);
 static void update(Engine*);
@@ -128,7 +128,7 @@ typedef void (*pf_t_closefont)(TTF_Font*);
 pf_t_closefont T_CloseFont = NULL;
 typedef void (*pf_t_quit)();
 pf_t_quit T_Quit = NULL;
-void* mix_lib = NULL;
+/*void* mix_lib = NULL;
 typedef int (*pf_m_playchannel)(int, Mix_Chunk*, int);
 pf_m_playchannel M_PlayChannel = NULL;
 typedef void (*pf_m_closeaudio)();
@@ -142,7 +142,7 @@ pf_m_init M_Init = NULL;
 typedef void (*pf_m_freechunk)(Mix_Chunk*);
 pf_m_freechunk M_FreeChunk = NULL;
 typedef void (*pf_m_quit)();
-pf_m_quit M_Quit = NULL;
+pf_m_quit M_Quit = NULL;*/
 void* cp_lib = NULL;
 typedef cpFloat (*pf_c_momentforbox)(cpFloat, cpFloat, cpFloat);
 pf_c_momentforbox C_MomentForBox = NULL;
@@ -174,6 +174,31 @@ typedef void (*pf_c_bodyfree)(cpBody*);
 pf_c_bodyfree C_BodyFree = NULL;
 typedef void (*pf_c_spacefree)(cpSpace*);
 pf_c_spacefree C_SpaceFree = NULL;
+void* soloud_lib = NULL;
+typedef Soloud* (*pf_o_soloudcreate)();
+pf_o_soloudcreate O_SoloudCreate = NULL;
+typedef Wav* (*pf_o_wavcreate)();
+pf_o_wavcreate O_WavCreate = NULL;
+typedef int (*pf_o_wavloadmemex)(Wav*, const unsigned char*, unsigned int, int, int);
+pf_o_wavloadmemex O_WavLoadMemEx = NULL;
+typedef int (*pf_o_init)(Soloud*);
+pf_o_init O_init = NULL;
+typedef unsigned int (*pf_o_playex)(Soloud*, AudioSource*, float, float, bool, unsigned int);
+pf_o_playex O_playEx = NULL;
+typedef void (*pf_o_deinit)(Soloud*);
+pf_o_deinit O_deinit = NULL;
+typedef void (*pf_o_wavdestroy)(Wav*);
+pf_o_wavdestroy O_WavDestroy = NULL;
+typedef void (*pf_o_solouddestroy)(Soloud*);
+pf_o_solouddestroy O_SoloudDestroy = NULL;
+typedef const char* (*pf_o_geterrorstring)(Soloud*, int);
+pf_o_geterrorstring O_getErrorString = NULL;
+typedef Sfxr* (*pf_o_sfxrcreate)();
+pf_o_sfxrcreate O_SfxrCreate = NULL;
+typedef int (*pf_o_sfxrloadparamsex)(Sfxr*, unsigned char*, unsigned int, int, int);
+pf_o_sfxrloadparamsex O_SfxrLoadParamsEx = NULL;
+typedef void (*pf_o_sfxrdestroy)(Sfxr*);
+pf_o_sfxrdestroy O_SfxrDestroy = NULL;
 
 static int lib_load() {
 #ifdef STATIC
@@ -228,13 +253,13 @@ static int lib_load() {
 	T_Init = &TTF_Init;
 	T_CloseFont = &TTF_CloseFont;
 	T_Quit = &TTF_Quit;
-	M_PlayChannel = &Mix_PlayChannel;
+	/*M_PlayChannel = &Mix_PlayChannel;
 	M_CloseAudio = &Mix_CloseAudio;
 	M_OpenAudio = &Mix_OpenAudio;
 	M_LoadWAV_RW = &Mix_LoadWAV_RW;
 	M_Init = &Mix_Init;
 	M_FreeChunk = &Mix_FreeChunk;
-	M_Quit = &Mix_Quit;
+	M_Quit = &Mix_Quit;*/
 	C_MomentForBox = &cpMomentForBox;
 	C_BodyNew = &cpBodyNew;
 	C_SpaceAddBody = &cpSpaceAddBody;
@@ -250,6 +275,18 @@ static int lib_load() {
 	C_ShapeFree = &cpShapeFree;
 	C_BodyFree = &cpBodyFree;
 	C_SpaceFree = &cpSpaceFree;
+	O_SoloudCreate = &Soloud_create;
+	O_WavCreate = &Wav_create;
+	O_WavLoadMemEx = &Wav_loadMemEx;
+	O_init = &Soloud_init;
+	O_playEx = &Soloud_playEx;
+	O_deinit = &Soloud_deinit;
+	O_WavDestroy = &Wav_destroy;
+	O_SoloudDestroy = &Soloud_destroy;
+	O_getErrorString = &Soloud_getErrorString;
+	O_SfxrCreate = &Sfxr_create;
+	O_SfxrLoadParamsEx = &Sfxr_loadParamsMemEx;
+	O_SfxrDestroy = &Sfxr_destroy;
 #else
 #ifdef _WIN32
 	//Add Windows dependent code
@@ -300,10 +337,12 @@ static int lib_load() {
 	if (!img_lib) return -1;
 	ttf_lib = S_LoadObject("libSDL2_ttf.so");
 	if (!ttf_lib) return -1;
-	mix_lib = S_LoadObject("libSDL2_mixer.so");
-	if (!mix_lib) return -1;
+	/*mix_lib = S_LoadObject("libSDL2_mixer.so");
+	if (!mix_lib) return -1;*/
 	cp_lib = S_LoadObject("libchipmunk.so");
 	if (!cp_lib) return -1;
+	soloud_lib = S_LoadObject("libsoloud.so");
+	if (!soloud_lib) return -1;
 #endif
 	S_DestroyTexture = S_LoadFunction(sdl_lib, "SDL_DestroyTexture");
 	if (!S_DestroyTexture) return -1;
@@ -395,7 +434,7 @@ static int lib_load() {
 	if (!T_CloseFont) return -1;
 	T_Quit = S_LoadFunction(ttf_lib, "TTF_Quit");
 	if (!T_Quit) return -1;
-	M_PlayChannel = S_LoadFunction(mix_lib, "Mix_PlayChannel");
+	/*M_PlayChannel = S_LoadFunction(mix_lib, "Mix_PlayChannel");
 	if (!M_PlayChannel) return -1;
 	M_CloseAudio = S_LoadFunction(mix_lib, "Mix_CloseAudio");
 	if (!M_CloseAudio) return -1;
@@ -408,7 +447,7 @@ static int lib_load() {
 	M_FreeChunk = S_LoadFunction(mix_lib, "Mix_FreeChunk");
 	if (!M_FreeChunk) return -1;
 	M_Quit = S_LoadFunction(mix_lib, "Mix_Quit");
-	if (!M_Quit) return -1;
+	if (!M_Quit) return -1;*/
 	C_MomentForBox = S_LoadFunction(cp_lib, "cpMomentForBox");
 	if (!C_MomentForBox) return -1;
 	C_BodyNew = S_LoadFunction(cp_lib, "cpBodyNew");
@@ -439,6 +478,30 @@ static int lib_load() {
 	if (!C_BodyFree) return -1;
 	C_SpaceFree = S_LoadFunction(cp_lib, "cpSpaceFree");
 	if (!C_SpaceFree) return -1;
+	O_SoloudCreate = S_LoadFunction(soloud_lib, "Soloud_create");
+	if (!O_SoloudCreate) return -1;
+	O_WavCreate = S_LoadFunction(soloud_lib, "Wav_create");
+	if (!O_WavCreate) return -1;
+	O_WavLoadMemEx = S_LoadFunction(soloud_lib, "Wav_loadMemEx");
+	if (!O_WavLoadMemEx) return -1;
+	O_init = S_LoadFunction(soloud_lib, "Soloud_init");
+	if (!O_init) return -1;
+	O_playEx = S_LoadFunction(soloud_lib, "Soloud_playEx");
+	if (!O_playEx) return -1;
+	O_deinit = S_LoadFunction(soloud_lib, "Soloud_deinit");
+	if (!O_deinit) return -1;
+	O_WavDestroy = S_LoadFunction(soloud_lib, "Wav_destroy");
+	if (!O_WavDestroy) return -1;
+	O_SoloudDestroy = S_LoadFunction(soloud_lib, "Soloud_destroy");
+	if (!O_SoloudDestroy) return -1;
+	O_getErrorString = S_LoadFunction(soloud_lib, "Soloud_getErrorString");
+	if (!O_getErrorString) return -1;
+	O_SfxrCreate = S_LoadFunction(soloud_lib, "Sfxr_create");
+	if (!O_SfxrCreate) return -1;
+	O_SfxrLoadParamsEx = S_LoadFunction(soloud_lib, "Sfxr_loadParamsMemEx");
+	if (!O_SfxrLoadParamsEx) return -1;
+	O_SfxrDestroy = S_LoadFunction(soloud_lib, "Sfxr_destroy");
+	if (!O_SfxrDestroy) return -1;
 #endif
 	return 0;
 }
@@ -457,6 +520,7 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	engine->space = NULL;
 	engine->audio = NULL;
 	engine->audio_num = 0;
+	engine->soloud = NULL;
 	if (lib_load() < 0) return NULL;
 	if (S_Init(SDL_INIT_EVERYTHING) < 0) return NULL;
 #ifdef DEBUG
@@ -465,8 +529,9 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL initialized");
 	if (T_Init() < 0) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_ttf initialized");
-	if (M_Init(0) < 0) return NULL;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_mixer initialized");
+	engine->soloud = O_SoloudCreate();
+	if (O_init(engine->soloud) != 0) return NULL;
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SoLoud initialized");
 	if (I_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP) != (IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP)) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_image initialized");
 	engine->window = S_CreateWindow("TidalEngine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, engine->width, engine->height, 0); //change title
@@ -478,7 +543,7 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	if (P_init(argv[0]) == 0) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "PHYSFS initialized");
 	engine->space = C_SpaceNew();
-	C_SpaceSetGravity(engine->space, cpv(0, -100));
+	C_SpaceSetGravity(engine->space, cpv(0, 100));
 	if (argc > 2) {
 		S_Log("Too many arguments, only one expected");
 		return NULL;
@@ -513,9 +578,8 @@ static int read_files(Engine* engine, const char *path) {
 		size_t len = 0;
 		char* data = read_data(path, &len);
 		if (data == NULL) return -1;
-		if (strcmp(ext, "bmp") == 0) {
-			SDL_RWops* rw = S_RWFromMem(data, len);
-			if (create_texture(engine, rw, path) < 0) return -1;
+		if (strcmp(ext, "bmp") == 0 || strcmp(ext, "jpg") == 0 || strcmp(ext, "png") == 0 || strcmp(ext, "webp") == 0 || strcmp(ext, "svg") == 0) {
+			if (create_texture(engine, data, len, path) < 0) return -1;
 			free(data);
 		} else if (strcmp(ext, "json") == 0) {
 			S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Contents of json file:\n%s", data);
@@ -523,8 +587,10 @@ static int read_files(Engine* engine, const char *path) {
 			free(data);
 		} else if (strcmp(ext, "ttf") == 0) {
 			if (create_font(engine, data, len, 24, path) < 0) return -1; //make size dynamic
-		} else if (strcmp(ext, "wav") == 0) {
-			if (create_audio(engine, data, len, path) < 0) return -1;
+		} else if (strcmp(ext, "wav") == 0 || strcmp(ext, "flac") == 0 || strcmp(ext, "mp3") == 0 || strcmp(ext, "ogg") == 0) {
+			if (create_audio(engine, data, len, path, 0) < 0) return -1;
+		} else if (strcmp(ext, "sfx") == 0) {
+			if (create_audio(engine, data, len, path, 1) < 0) return -1;
 		}
 		//Add more filetypes later
 	}
@@ -594,20 +660,20 @@ static int create_object(Engine* engine, char* string, size_t len) {
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Physics applied to object");
 	for (int i = 0; i < engine->audio_num; i++) { //temporary
 		if (strcmp((engine->audio+i)->name, J_GetObjectItemCaseSensitive(json, "sound")->valuestring) == 0) {
-			M_PlayChannel(-1, (engine->audio+i)->data, 0);
+			O_playEx(engine->soloud, (engine->audio+i)->data, 1.0, 0.0, 0, 0);
 		}
 	}
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object successfully created");
 	return 0;
 }
 
-static int create_texture(Engine* engine, SDL_RWops* rw, const char* path) {
+static int create_texture(Engine* engine, char* data, size_t len, const char* path) {
+	engine->textures = (Texture*)realloc(engine->textures, (engine->textures_num+1)*sizeof(Texture));
+	engine->textures[engine->textures_num].data = I_LoadTexture_RW(engine->renderer, S_RWFromMem(data, len), 1);
+	engine->textures[engine->textures_num].name = (char*)malloc(strlen(path+1));
+	strcpy(engine->textures[engine->textures_num].name, path+1);
+	if (!engine->textures[engine->textures_num].data) return -1;
 	engine->textures_num++;
-	engine->textures = (Texture*)realloc(engine->textures, engine->textures_num*sizeof(Texture));
-	(engine->textures + engine->textures_num-1)->data = I_LoadTexture_RW(engine->renderer, rw, 1);
-	(engine->textures + engine->textures_num-1)->name = (char*)malloc(strlen(path+1));
-	strcpy((engine->textures + engine->textures_num-1)->name, path+1);
-	if (!engine->textures->data) return -1;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Texture successfully created");
 	return 0;
 }
@@ -625,15 +691,21 @@ static int create_font(Engine* engine, char* data, size_t len, int ptsize, const
 	return 0;
 }
 
-static int create_audio(Engine* engine, char* data, size_t len, const char* path) {
+static int create_audio(Engine* engine, char* data, size_t len, const char* path, int type) {
+	engine->audio = (Audio*)realloc(engine->audio, (engine->audio_num+1)*sizeof(Audio));
+	int err = 0;
+	if (type == 0) {
+		engine->audio[engine->audio_num].data = O_WavCreate();
+		err = O_WavLoadMemEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 0, 1);
+	} else if (type == 1) {
+		engine->audio[engine->audio_num].data = O_SfxrCreate();
+		err = O_SfxrLoadParamsEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 0, 1);
+	}
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Soloud load error: %s", O_getErrorString(engine->soloud, err));
+	engine->audio[engine->audio_num].name = (char*)malloc(strlen(path+1));
+	strcpy(engine->audio[engine->audio_num].name, path+1);
+	if (!engine->audio[engine->audio_num].data) return -1;
 	engine->audio_num++;
-	engine->audio = (Audio*)realloc(engine->audio, engine->audio_num*sizeof(Audio));
-	M_CloseAudio();
-	M_OpenAudio(48000, AUDIO_S16SYS, 1, 2048);
-	(engine->audio + engine->audio_num-1)->data = M_LoadWAV_RW(S_RWFromMem(data, len), 1);
-	(engine->audio + engine->audio_num-1)->name = (char*)malloc(strlen(path+1));
-	strcpy((engine->audio + engine->audio_num-1)->name, path+1);
-	if (!engine->audio->data) return -1;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio successfully created");
 	return 0;
 }
@@ -706,7 +778,7 @@ void Tidal_cleanup(Engine* engine) {
 	free(engine->fonts); engine->fonts = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Fonts freed");
 	for (int i = 0; i < engine->audio_num; i++) {
-		M_FreeChunk(engine->audio[i].data);
+		O_WavDestroy(engine->audio[i].data);
 		free(engine->audio[i].name);
 	}
 	free(engine->audio); engine->audio = NULL;
@@ -716,9 +788,9 @@ void Tidal_cleanup(Engine* engine) {
 	S_DestroyWindow(engine->window); engine->window = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Window freed");
 	I_Quit();
-	M_CloseAudio();
-	M_Quit();
 	T_Quit();
+	O_deinit(engine->soloud);
+	O_SoloudDestroy(engine->soloud); engine->soloud = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Libs quit");
 #ifdef STATIC
 	S_Quit();
@@ -726,8 +798,9 @@ void Tidal_cleanup(Engine* engine) {
 	S_UnloadObject(cjson_lib); cjson_lib = NULL;
 	S_UnloadObject(img_lib); img_lib = NULL;
 	S_UnloadObject(ttf_lib); ttf_lib = NULL;
-	S_UnloadObject(mix_lib); mix_lib = NULL;
+	//S_UnloadObject(mix_lib); mix_lib = NULL;
 	S_UnloadObject(cp_lib); cp_lib = NULL;
+	S_UnloadObject(soloud_lib); soloud_lib = NULL;
 	S_Quit();
 #ifdef _WIN32
 	//Add Windows dependent code

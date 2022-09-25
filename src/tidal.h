@@ -9,8 +9,8 @@
 #include <cjson/cJSON.h>
 #include <SDL2/SDL_ttf.h>
 #include <chipmunk/chipmunk.h>
-#include <SDL2/SDL_mixer.h>
 #include <stdbool.h>
+#include <soloud/soloud_c.h>
 
 #ifndef STATIC
 #include <dlfcn.h>
@@ -39,7 +39,7 @@ struct Font {
 typedef struct Font Font;
 struct Audio {
 	char* name;
-	Mix_Chunk* data;
+	AudioSource* data;
 };
 typedef struct Audio Audio;
 struct Engine {
@@ -57,6 +57,7 @@ struct Engine {
 	cpSpace* space;
 	Audio* audio;
 	size_t audio_num;
+	Soloud* soloud;
 };
 typedef struct Engine Engine;
 
