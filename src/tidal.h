@@ -11,6 +11,7 @@
 #include <chipmunk/chipmunk.h>
 #include <stdbool.h>
 #include <soloud/soloud_c.h>
+//#include <uuid/uuid.h>
 
 #ifndef STATIC
 #include <dlfcn.h>
@@ -21,15 +22,23 @@ struct Texture {
 	SDL_Texture* data;
 };
 typedef struct Texture Texture;
-struct Object {
-	cJSON* json;
+
+struct Instance {
+	//uuid_t id;
 	SDL_Rect dst;
 	SDL_Texture* texture;
 	SDL_Texture* text;
 	cpBody* body;
 	cpShape* shape;
 };
+typedef struct Instance Instance;
+
+struct Object {
+	char* name;
+	cJSON* data;
+};
 typedef struct Object Object;
+
 struct Font {
 	char* name;
 	char* raw;
@@ -37,14 +46,14 @@ struct Font {
 	TTF_Font* data;
 };
 typedef struct Font Font;
+
 struct Audio {
 	char* name;
 	AudioSource* data;
 };
 typedef struct Audio Audio;
+
 struct Engine {
-	unsigned int width;
-	unsigned int height;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	Texture* textures;
@@ -58,6 +67,12 @@ struct Engine {
 	Audio* audio;
 	size_t audio_num;
 	Soloud* soloud;
+	Instance* instances;
+	size_t instances_num;
+	size_t* layers;
+	size_t layers_num;
+	Object* first_object;
+	size_t first_layer;
 };
 typedef struct Engine Engine;
 

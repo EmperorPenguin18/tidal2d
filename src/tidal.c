@@ -12,14 +12,16 @@ static int read_files(Engine*, const char*);
 static const char* getextension(const char*);
 static void prepend(char*, const char*);
 
-static int create_object(Engine*, char*, size_t);
-static int create_texture(Engine*, char*, size_t, const char*);
-static int create_font(Engine*, char*, size_t, int, const char*);
-static int create_audio(Engine*, char*, size_t, const char*, int);
+static int init_object(Engine*, char*, size_t, const char*);
+static int init_texture(Engine*, char*, size_t, const char*);
+static int init_font(Engine*, char*, size_t, int, const char*);
+static int init_audio(Engine*, char*, size_t, const char*, int);
 
 static void events(Engine*);
 static void update(Engine*);
 static void draw(Engine*);
+
+static int action_spawn(Engine*, const char*, int, int);
 
 void* sdl_lib = NULL;
 typedef void* (*pf_s_loadobject)(const char*);
@@ -108,6 +110,12 @@ typedef cJSON* (*pf_j_parsewithlength)(const char*, size_t);
 pf_j_parsewithlength J_ParseWithLength = NULL;
 typedef void (*pf_j_delete)(cJSON*);
 pf_j_delete J_Delete = NULL;
+typedef cJSON_bool (*pf_j_isnumber)(const cJSON*);
+pf_j_isnumber J_IsNumber = NULL;
+typedef cJSON_bool (*pf_j_isstring)(const cJSON*);
+pf_j_isstring J_IsString = NULL;
+typedef const char* (*pf_j_geterrorptr)();
+pf_j_geterrorptr J_GetErrorPtr = NULL;
 void* img_lib = NULL;
 typedef SDL_Texture* (*pf_i_loadtexturerw)(SDL_Renderer*, SDL_RWops*, int);
 pf_i_loadtexturerw I_LoadTexture_RW = NULL;
@@ -244,6 +252,9 @@ static int lib_load() {
 	J_GetObjectItemCaseSensitive = &cJSON_GetObjectItemCaseSensitive;
 	J_ParseWithLength = &cJSON_ParseWithLength;
 	J_Delete = &cJSON_Delete;
+	J_IsNumber = &cJSON_IsNumber;
+	J_IsString = &cJSON_IsString;
+	J_GetErrorPtr = &cJSON_GetErrorPtr;
 	I_LoadTexture_RW = &IMG_LoadTexture_RW;
 	I_Init = &IMG_Init;
 	I_Quit = &IMG_Quit;
@@ -416,6 +427,12 @@ static int lib_load() {
 	if (!J_ParseWithLength) return -1;
 	J_Delete = S_LoadFunction(cjson_lib, "cJSON_Delete");
 	if (!J_Delete) return -1;
+	J_IsNumber = S_LoadFunction(cjson_lib, "cJSON_IsNumber");
+	if (!J_IsNumber) return -1;
+	J_IsString = S_LoadFunction(cjson_lib, "cJSON_IsString");
+	if (!J_IsString) return -1;
+	J_GetErrorPtr = S_LoadFunction(cjson_lib, "cJSON_GetErrorPtr");
+	if (!J_GetErrorPtr) return -1;
 	I_LoadTexture_RW = S_LoadFunction(img_lib, "IMG_LoadTexture_RW");
 	if (!I_LoadTexture_RW) return -1;
 	I_Init = S_LoadFunction(img_lib, "IMG_Init");
@@ -509,7 +526,6 @@ static int lib_load() {
 Engine* Tidal_init(int argc, char *argv[]) {
 	Engine* engine = (Engine*)malloc(sizeof(Engine));
 	if (engine == NULL) return NULL;
-	engine->height = 480;
 	engine->running = true;
 	engine->textures = NULL;
 	engine->textures_num = 0;
@@ -521,6 +537,12 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	engine->audio = NULL;
 	engine->audio_num = 0;
 	engine->soloud = NULL;
+	engine->instances = NULL;
+	engine->instances_num = 0;
+	engine->layers = NULL;
+	engine->layers_num = 0;
+	engine->first_object = NULL;
+	engine->first_layer = SIZE_MAX;
 	if (lib_load() < 0) return NULL;
 	if (S_Init(SDL_INIT_EVERYTHING) < 0) return NULL;
 #ifdef DEBUG
@@ -534,7 +556,7 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SoLoud initialized");
 	if (I_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP) != (IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP)) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_image initialized");
-	engine->window = S_CreateWindow("TidalEngine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, engine->width, engine->height, 0); //change title
+	engine->window = S_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
 	if (!engine->window) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Window created");
 	engine->renderer = S_CreateRenderer(engine->window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
@@ -553,6 +575,7 @@ Engine* Tidal_init(int argc, char *argv[]) {
 		if (read_files(engine, "") != 0) return NULL;
 	}
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files read");
+	if (engine->objects_num > 0) action_spawn(engine, engine->first_object->name, 0, 0);
 	return engine;
 }
 
@@ -579,18 +602,18 @@ static int read_files(Engine* engine, const char *path) {
 		char* data = read_data(path, &len);
 		if (data == NULL) return -1;
 		if (strcmp(ext, "bmp") == 0 || strcmp(ext, "jpg") == 0 || strcmp(ext, "png") == 0 || strcmp(ext, "webp") == 0 || strcmp(ext, "svg") == 0) {
-			if (create_texture(engine, data, len, path) < 0) return -1;
+			if (init_texture(engine, data, len, path) < 0) return -1;
 			free(data);
 		} else if (strcmp(ext, "json") == 0) {
 			S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Contents of json file:\n%s", data);
-			if (create_object(engine, data, len) < 0) return -1;
+			if (init_object(engine, data, len, path) < 0) return -1;
 			free(data);
 		} else if (strcmp(ext, "ttf") == 0) {
-			if (create_font(engine, data, len, 24, path) < 0) return -1; //make size dynamic
+			if (init_font(engine, data, len, 24, path) < 0) return -1; //make size dynamic
 		} else if (strcmp(ext, "wav") == 0 || strcmp(ext, "flac") == 0 || strcmp(ext, "mp3") == 0 || strcmp(ext, "ogg") == 0) {
-			if (create_audio(engine, data, len, path, 0) < 0) return -1;
+			if (init_audio(engine, data, len, path, 0) < 0) return -1;
 		} else if (strcmp(ext, "sfx") == 0) {
-			if (create_audio(engine, data, len, path, 1) < 0) return -1;
+			if (init_audio(engine, data, len, path, 1) < 0) return -1;
 		}
 		//Add more filetypes later
 	}
@@ -620,54 +643,28 @@ static void prepend(char* s, const char* t) {
 	memcpy(s, t, len);
 }
 
-static int create_object(Engine* engine, char* string, size_t len) {
+static int init_object(Engine* engine, char* data, size_t len, const char* path) {
+	engine->objects = (Object*)realloc(engine->objects, (engine->objects_num+1)*sizeof(Object));
+	engine->objects[engine->objects_num].data = J_ParseWithLength(data, len);
+	engine->objects[engine->objects_num].name = (char*)malloc(strlen(path+1));
+	strcpy(engine->objects[engine->objects_num].name, path+1);
+	if (!engine->objects[engine->objects_num].data) {
+		S_Log("cJSON error: %s", J_GetErrorPtr());
+		return -1;
+	}
+	const cJSON* layer = J_GetObjectItemCaseSensitive(engine->objects[engine->objects_num].data, "layer");
+	if (J_IsNumber(layer)) {
+		if (layer->valueint < engine->first_layer) {
+			engine->first_object = engine->objects + engine->objects_num;
+			engine->first_layer = layer->valueint;
+		}
+	}
 	engine->objects_num++;
-	engine->objects = (Object*)realloc(engine->objects, engine->objects_num*sizeof(Object));
-	(engine->objects + engine->objects_num-1)->json = J_ParseWithLength(string, len);
-	const cJSON* json = (engine->objects + engine->objects_num-1)->json;
-	(engine->objects + engine->objects_num-1)->dst.x = 0;
-	(engine->objects + engine->objects_num-1)->dst.y = 0;
-	(engine->objects + engine->objects_num-1)->dst.w = J_GetObjectItemCaseSensitive(json, "width")->valueint;
-	(engine->objects + engine->objects_num-1)->dst.h = J_GetObjectItemCaseSensitive(json, "height")->valueint;
-	(engine->objects + engine->objects_num-1)->texture = NULL;
-	for (int i = 0; i < engine->textures_num; i++) {
-		if (strcmp((engine->textures+i)->name, J_GetObjectItemCaseSensitive(json, "sprite")->valuestring) == 0) {
-			(engine->objects + engine->objects_num-1)->texture = (engine->textures+i)->data; //improve
-		}
-	}
-	if ((engine->objects + engine->objects_num-1)->texture == NULL) return -1;
-	(engine->objects + engine->objects_num-1)->text = NULL;
-	for (int i = 0; i < engine->fonts_num; i++) { //improve
-		if (strcmp((engine->fonts+i)->name, J_GetObjectItemCaseSensitive(json, "font")->valuestring) == 0) {
-			TTF_Font* font = (engine->fonts+i)->data;
-			SDL_Color color = {255, 255, 255, 255}; //make dynamic
-			const char* string = J_GetObjectItemCaseSensitive(json, "text")->valuestring;
-			SDL_Surface* text = T_RenderUTF8_Solid_Wrapped(font, string, color, 0);
-			if (text == NULL) return -1;
-			(engine->objects + engine->objects_num-1)->text = S_CreateTextureFromSurface(engine->renderer, text);
-			S_FreeSurface(text);
-		}
-	}
-	if ((engine->objects + engine->objects_num-1)->text == NULL) return -1;
-	(engine->objects + engine->objects_num-1)->body = NULL;
-	(engine->objects + engine->objects_num-1)->shape = NULL;
-	if (strcmp(J_GetObjectItemCaseSensitive(json, "shape")->valuestring, "box") == 0) { //set mass and friction dynamically
-		(engine->objects + engine->objects_num-1)->body = C_SpaceAddBody(engine->space, C_BodyNew(1, C_MomentForBox(1, (engine->objects + engine->objects_num-1)->dst.w, (engine->objects + engine->objects_num-1)->dst.h)));
-		C_BodySetPosition((engine->objects + engine->objects_num-1)->body, cpv(0, 0));
-		(engine->objects + engine->objects_num-1)->shape = C_SpaceAddShape(engine->space, C_BoxShapeNew((engine->objects + engine->objects_num-1)->body, (engine->objects + engine->objects_num-1)->dst.w, (engine->objects + engine->objects_num-1)->dst.h, 0));
-		C_ShapeSetFriction((engine->objects + engine->objects_num-1)->shape, 0.7);
-	} //add other shapes
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Physics applied to object");
-	for (int i = 0; i < engine->audio_num; i++) { //temporary
-		if (strcmp((engine->audio+i)->name, J_GetObjectItemCaseSensitive(json, "sound")->valuestring) == 0) {
-			O_playEx(engine->soloud, (engine->audio+i)->data, 1.0, 0.0, 0, 0);
-		}
-	}
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object successfully created");
 	return 0;
 }
 
-static int create_texture(Engine* engine, char* data, size_t len, const char* path) {
+static int init_texture(Engine* engine, char* data, size_t len, const char* path) {
 	engine->textures = (Texture*)realloc(engine->textures, (engine->textures_num+1)*sizeof(Texture));
 	engine->textures[engine->textures_num].data = I_LoadTexture_RW(engine->renderer, S_RWFromMem(data, len), 1);
 	engine->textures[engine->textures_num].name = (char*)malloc(strlen(path+1));
@@ -678,7 +675,7 @@ static int create_texture(Engine* engine, char* data, size_t len, const char* pa
 	return 0;
 }
 
-static int create_font(Engine* engine, char* data, size_t len, int ptsize, const char* path) {
+static int init_font(Engine* engine, char* data, size_t len, int ptsize, const char* path) {
 	engine->fonts_num++;
 	engine->fonts = (Font*)realloc(engine->fonts, engine->fonts_num*sizeof(Font));
 	(engine->fonts + engine->fonts_num-1)->raw = data;
@@ -691,7 +688,7 @@ static int create_font(Engine* engine, char* data, size_t len, int ptsize, const
 	return 0;
 }
 
-static int create_audio(Engine* engine, char* data, size_t len, const char* path, int type) {
+static int init_audio(Engine* engine, char* data, size_t len, const char* path, int type) {
 	engine->audio = (Audio*)realloc(engine->audio, (engine->audio_num+1)*sizeof(Audio));
 	int err = 0;
 	if (type == 0) {
@@ -730,13 +727,109 @@ static void events(Engine* engine) {
 	}
 }
 
-static void update(Engine* engine) {
+static int action_spawn(Engine* engine, const char* name, int x, int y) {
+	cJSON* json = NULL;
 	for (int i = 0; i < engine->objects_num; i++) {
-		if (engine->objects[i].body != NULL) {
-			cpVect pos = C_BodyGetPosition(engine->objects[i].body);
-			//cpVect vel = C_BodyGetVelocity(engine->objects[i].body);
-			engine->objects[i].dst.x = pos.x;
-			engine->objects[i].dst.y = pos.y;
+		if (strcmp(name, engine->objects[i].name) == 0) {
+			json = engine->objects[i].data;
+		}
+	}
+	if (json == NULL) return -1;
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object found");
+
+	engine->instances = (Instance*)realloc(engine->instances, (engine->instances_num+1)*sizeof(Instance));
+	const cJSON* layer = J_GetObjectItemCaseSensitive(json, "layer");
+	int num = 0, n, sum = 0;
+	if (J_IsNumber(layer)) {
+		num = layer->valueint;
+	}
+	if ((num+1) > engine->layers_num) {
+		engine->layers = (size_t*)realloc(engine->layers, (num+1)*sizeof(size_t));
+		for (int i = engine->layers_num; i < num+1; i++) engine->layers[i] = 0;
+		engine->layers_num = num+1;
+	}
+	for (n = 0; n < num; n++) sum += engine->layers[n];
+	engine->layers[num]++;
+	engine->instances_num++;
+	for (int i = engine->instances_num - 1; i >= sum; i--) engine->instances[i] = engine->instances[i - 1];
+	//engine->instances[sum].id = something;
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Layers updated");
+	
+	engine->instances[sum].dst.x = x;
+	engine->instances[sum].dst.y = y;
+	const cJSON* width = J_GetObjectItemCaseSensitive(json, "width");
+	if (J_IsNumber(width)) {
+		engine->instances[sum].dst.w = width->valueint;
+	} else engine->instances[sum].dst.w = 0;
+	const cJSON* height = J_GetObjectItemCaseSensitive(json, "height");
+	if (J_IsNumber(height)) {
+		engine->instances[sum].dst.h = height->valueint;
+	} else engine->instances[sum].dst.h = 0;
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Position and size set");
+	
+	engine->instances[sum].texture = NULL;
+	const cJSON* sprite = J_GetObjectItemCaseSensitive(json, "sprite");
+	if (J_IsString(sprite) && (sprite->valuestring != NULL)) {
+		for (int i = 0; i < engine->textures_num; i++) {
+			if (strcmp(engine->textures[i].name, sprite->valuestring) == 0) {
+				engine->instances[sum].texture = engine->textures[i].data;
+			}
+		}
+	}
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Texture set");
+
+	engine->instances[sum].text = NULL;
+	const cJSON* font = J_GetObjectItemCaseSensitive(json, "font");
+	if (J_IsString(font) && (font->valuestring != NULL)) {
+		/*for (int i = 0; i < engine->fonts_num; i++) {
+			if (strcmp(engine->fonts[i].name, font->valuestring) == 0) {
+				TTF_Font* font = engine->fonts[i].data;
+				SDL_Color color = {255, 255, 255, 255}; //make dynamic
+				const char* string = J_GetObjectItemCaseSensitive(json, "text")->valuestring;
+				SDL_Surface* text = T_RenderUTF8_Solid_Wrapped(font, string, color, 0);
+				if (text == NULL) return -1;
+				engine->instances[sum].text = S_CreateTextureFromSurface(engine->renderer, text);
+				S_FreeSurface(text);
+			}
+		}*/
+	}
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Text set");
+
+	engine->instances[sum].body = NULL;
+	engine->instances[sum].shape = NULL;
+	const cJSON* shape = J_GetObjectItemCaseSensitive(json, "shape");
+	if (J_IsString(shape) && (shape->valuestring != NULL)) {
+		if (strcmp(shape->valuestring, "box") == 0) { //set mass and friction dynamically
+			engine->instances[sum].body = C_SpaceAddBody(engine->space,
+				C_BodyNew(1, C_MomentForBox(1, engine->instances[sum].dst.w,
+						engine->instances[sum].dst.h)));
+			C_BodySetPosition(engine->instances[sum].body, cpv(engine->instances[sum].dst.x,
+						engine->instances[sum].dst.y));
+			engine->instances[sum].shape = C_SpaceAddShape(engine->space, C_BoxShapeNew(engine->instances[sum].body,
+						engine->instances[sum].dst.w, engine->instances[sum].dst.h, 0));
+			C_ShapeSetFriction(engine->instances[sum].shape, 0.7);
+		} //add other shapes
+	}
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Physics set");
+
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object successfully created");
+	return 0;
+}
+
+/*static int action_sound(const char* name) {
+	for (int i = 0; i < engine->audio_num; i++) { //temporary
+		if (strcmp((engine->audio+i)->name, J_GetObjectItemCaseSensitive(json, "sound")->valuestring) == 0) {
+			O_playEx(engine->soloud, (engine->audio+i)->data, 1.0, 0.0, 0, 0);
+		}
+	}
+}*/
+
+static void update(Engine* engine) {
+	for (int i = 0; i < engine->instances_num; i++) {
+		if (engine->instances[i].body != NULL) {
+			cpVect pos = C_BodyGetPosition(engine->instances[i].body);
+			engine->instances[i].dst.x = pos.x;
+			engine->instances[i].dst.y = pos.y;
 		}
 	}
 	C_SpaceStep(engine->space, 1.0/60.0);
@@ -746,9 +839,9 @@ static void draw(Engine* engine) {
 	S_SetRenderDrawBlendMode(engine->renderer, SDL_BLENDMODE_NONE);
 	S_SetRenderDrawColor(engine->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
 	S_RenderClear(engine->renderer);
-	for (int i = 0; i < engine->objects_num; i++) {
-		S_RenderCopy(engine->renderer, (engine->objects + i)->texture, NULL, &((engine->objects + i)->dst));
-		S_RenderCopy(engine->renderer, (engine->objects + i)->text, NULL, &((engine->objects + i)->dst));
+	for (int i = 0; i < engine->instances_num; i++) {
+		S_RenderCopy(engine->renderer, engine->instances[i].texture, NULL, &(engine->instances[i].dst));
+		S_RenderCopy(engine->renderer, engine->instances[i].text, NULL, &(engine->instances[i].dst));
 	}
 	S_RenderPresent(engine->renderer);
 }
@@ -761,11 +854,17 @@ void Tidal_cleanup(Engine* engine) {
 	}
 	free(engine->textures); engine->textures = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Textures freed");
+	for (int i = 0; i < engine->instances_num; i++) {
+		S_DestroyTexture(engine->instances[i].text);
+		C_ShapeFree(engine->instances[i].shape);
+		C_BodyFree(engine->instances[i].body);
+	}
+	free(engine->instances); engine->instances = NULL;
+	free(engine->layers); engine->layers = NULL;
+	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Instances freed");
 	for (int i = 0; i < engine->objects_num; i++) {
-		J_Delete(engine->objects[i].json);
-		S_DestroyTexture(engine->objects[i].text);
-		C_ShapeFree(engine->objects[i].shape);
-		C_BodyFree(engine->objects[i].body);
+		J_Delete(engine->objects[i].data);
+		free(engine->objects[i].name);
 	}
 	free(engine->objects); engine->objects = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Objects freed");
