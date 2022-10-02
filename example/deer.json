@@ -1,10 +1,9 @@
 {
 	"layer": 0,
-	"sprite": "blackbuck.bmp",
 	"width": 400,
 	"height": 400,
+	"sprite": "deer.svg",
 	"font": "DejaVuSans.ttf",
 	"text": "Hello World!",
-	"shape": "box",
-	"sound": "Front_Center.wav"
+	"shape": "box"
 }

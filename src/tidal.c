@@ -14,13 +14,14 @@ static void prepend(char*, const char*);
 
 static int init_object(Engine*, char*, size_t, const char*);
 static int init_texture(Engine*, char*, size_t, const char*);
-static int init_font(Engine*, char*, size_t, int, const char*);
+static int init_font(Engine*, char*, size_t, const char*);
 static int init_audio(Engine*, char*, size_t, const char*, int);
 
 static void events(Engine*);
 static void update(Engine*);
 static void draw(Engine*);
 
+static int init_ui(Engine*, int);
 static int action_spawn(Engine*, const char*, int, int);
 
 void* sdl_lib = NULL;
@@ -76,6 +77,12 @@ typedef void (*pf_s_logdebug)(int, const char*, ...);
 pf_s_logdebug S_LogDebug = NULL;
 typedef void (*pf_s_logsetpriority)(int, SDL_LogPriority);
 pf_s_logsetpriority S_LogSetPriority = NULL;
+typedef SDL_Texture* (*pf_s_createtexture)(SDL_Renderer*, Uint32, int, int, int);
+pf_s_createtexture S_CreateTexture = NULL;
+typedef int (*pf_s_setrendertarget)(SDL_Renderer*, SDL_Texture*);
+pf_s_setrendertarget S_SetRenderTarget = NULL;
+typedef int (*pf_s_renderdrawrect)(SDL_Renderer*, const SDL_Rect*);
+pf_s_renderdrawrect S_RenderDrawRect = NULL;
 void* physfs_lib = NULL;
 typedef const char* (*pf_p_geterrorbycode)(PHYSFS_ErrorCode);
 pf_p_geterrorbycode P_getErrorByCode = NULL;
@@ -116,6 +123,8 @@ typedef cJSON_bool (*pf_j_isstring)(const cJSON*);
 pf_j_isstring J_IsString = NULL;
 typedef const char* (*pf_j_geterrorptr)();
 pf_j_geterrorptr J_GetErrorPtr = NULL;
+typedef cJSON_bool (*pf_j_istrue)(const cJSON*);
+pf_j_istrue J_IsTrue = NULL;
 void* img_lib = NULL;
 typedef SDL_Texture* (*pf_i_loadtexturerw)(SDL_Renderer*, SDL_RWops*, int);
 pf_i_loadtexturerw I_LoadTexture_RW = NULL;
@@ -123,7 +132,7 @@ typedef int (*pf_i_init)(int);
 pf_i_init I_Init = NULL;
 typedef void (*pf_i_quit)();
 pf_i_quit I_Quit = NULL;
-void* ttf_lib = NULL;
+/*void* ttf_lib = NULL;
 typedef int (*pf_t_fontheight)(const TTF_Font*);
 pf_t_fontheight T_FontHeight = NULL;
 typedef SDL_Surface* (*pf_t_renderutf8solidwrapped)(TTF_Font*, const char*, SDL_Color, Uint32);
@@ -136,7 +145,7 @@ typedef void (*pf_t_closefont)(TTF_Font*);
 pf_t_closefont T_CloseFont = NULL;
 typedef void (*pf_t_quit)();
 pf_t_quit T_Quit = NULL;
-/*void* mix_lib = NULL;
+void* mix_lib = NULL;
 typedef int (*pf_m_playchannel)(int, Mix_Chunk*, int);
 pf_m_playchannel M_PlayChannel = NULL;
 typedef void (*pf_m_closeaudio)();
@@ -207,6 +216,17 @@ typedef int (*pf_o_sfxrloadparamsex)(Sfxr*, unsigned char*, unsigned int, int, i
 pf_o_sfxrloadparamsex O_SfxrLoadParamsEx = NULL;
 typedef void (*pf_o_sfxrdestroy)(Sfxr*);
 pf_o_sfxrdestroy O_SfxrDestroy = NULL;
+void* fc_lib;
+typedef FC_Font* (*pf_f_createfont)();
+pf_f_createfont F_CreateFont = NULL;
+typedef Uint8 (*pf_f_loadfontrw)(FC_Font*, SDL_Renderer*, SDL_RWops*, Uint8, Uint32, SDL_Color, int);
+pf_f_loadfontrw F_LoadFontRW = NULL;
+typedef FC_Rect (*pf_f_draw)(FC_Font*, FC_Target*, float, float, const char*, ...);
+pf_f_draw F_Draw = NULL;
+typedef void (*pf_f_freefont)(FC_Font*);
+pf_f_freefont F_FreeFont = NULL;
+typedef SDL_Color (*pf_f_makecolor)(Uint8, Uint8, Uint8, Uint8);
+pf_f_makecolor F_MakeColor = NULL;
 
 static int lib_load() {
 #ifdef STATIC
@@ -236,6 +256,9 @@ static int lib_load() {
 	S_UnloadObject = &SDL_UnloadObject;
 	S_LogDebug = &SDL_LogDebug;
 	S_LogSetPriority = &SDL_LogSetPriority;
+	S_CreateTexture = &SDL_CreateTexture;
+	S_SetRenderTarget = &SDL_SetRenderTarget;
+	S_RenderDrawRect = &SDL_RenderDrawRect;
 	P_getErrorByCode = &PHYSFS_getErrorByCode;
 	P_getLastErrorCode = &PHYSFS_getLastErrorCode;
 	P_openRead = &PHYSFS_openRead;
@@ -255,16 +278,17 @@ static int lib_load() {
 	J_IsNumber = &cJSON_IsNumber;
 	J_IsString = &cJSON_IsString;
 	J_GetErrorPtr = &cJSON_GetErrorPtr;
+	J_IsTrue = &cJSON_IsTrue;
 	I_LoadTexture_RW = &IMG_LoadTexture_RW;
 	I_Init = &IMG_Init;
 	I_Quit = &IMG_Quit;
-	T_FontHeight = &TTF_FontHeight;
+	/*T_FontHeight = &TTF_FontHeight;
 	T_RenderUTF8_Solid_Wrapped = &TTF_RenderUTF8_Solid_Wrapped;
 	T_OpenFontRW = &TTF_OpenFontRW;
 	T_Init = &TTF_Init;
 	T_CloseFont = &TTF_CloseFont;
 	T_Quit = &TTF_Quit;
-	/*M_PlayChannel = &Mix_PlayChannel;
+	M_PlayChannel = &Mix_PlayChannel;
 	M_CloseAudio = &Mix_CloseAudio;
 	M_OpenAudio = &Mix_OpenAudio;
 	M_LoadWAV_RW = &Mix_LoadWAV_RW;
@@ -298,6 +322,11 @@ static int lib_load() {
 	O_SfxrCreate = &Sfxr_create;
 	O_SfxrLoadParamsEx = &Sfxr_loadParamsMemEx;
 	O_SfxrDestroy = &Sfxr_destroy;
+	F_CreateFont = &FC_CreateFont;
+	F_LoadFontRW = &FC_LoadFont_RW;
+	F_Draw = &FC_Draw;
+	F_FreeFont = &FC_FreeFont;
+	F_MakeColor = &FC_MakeColor;
 #else
 #ifdef _WIN32
 	//Add Windows dependent code
@@ -346,14 +375,16 @@ static int lib_load() {
 	if (!cjson_lib) return -1;
 	img_lib = S_LoadObject("libSDL2_image.so");
 	if (!img_lib) return -1;
-	ttf_lib = S_LoadObject("libSDL2_ttf.so");
+	/*ttf_lib = S_LoadObject("libSDL2_ttf.so");
 	if (!ttf_lib) return -1;
-	/*mix_lib = S_LoadObject("libSDL2_mixer.so");
+	mix_lib = S_LoadObject("libSDL2_mixer.so");
 	if (!mix_lib) return -1;*/
 	cp_lib = S_LoadObject("libchipmunk.so");
 	if (!cp_lib) return -1;
 	soloud_lib = S_LoadObject("libsoloud.so");
 	if (!soloud_lib) return -1;
+	fc_lib = S_LoadObject("libSDL2_FontCache.so");
+	if (!fc_lib) return -1;
 #endif
 	S_DestroyTexture = S_LoadFunction(sdl_lib, "SDL_DestroyTexture");
 	if (!S_DestroyTexture) return -1;
@@ -399,6 +430,12 @@ static int lib_load() {
 	if (!S_LogDebug) return -1;
 	S_LogSetPriority = S_LoadFunction(sdl_lib, "SDL_LogSetPriority");
 	if (!S_LogSetPriority) return -1;
+	S_CreateTexture = S_LoadFunction(sdl_lib, "SDL_CreateTexture");
+	if (!S_CreateTexture) return -1;
+	S_SetRenderTarget = S_LoadFunction(sdl_lib, "SDL_SetRenderTarget");
+	if (!S_SetRenderTarget) return -1;
+	S_RenderDrawRect = S_LoadFunction(sdl_lib, "SDL_RenderDrawRect");
+	if (!S_RenderDrawRect) return -1;
 	P_openRead = S_LoadFunction(physfs_lib, "PHYSFS_openRead");
 	if (!P_openRead) return -1;
 	P_fileLength = S_LoadFunction(physfs_lib, "PHYSFS_fileLength");
@@ -433,13 +470,15 @@ static int lib_load() {
 	if (!J_IsString) return -1;
 	J_GetErrorPtr = S_LoadFunction(cjson_lib, "cJSON_GetErrorPtr");
 	if (!J_GetErrorPtr) return -1;
+	J_IsTrue = S_LoadFunction(cjson_lib, "cJSON_IsTrue");
+	if (!J_IsTrue) return -1;
 	I_LoadTexture_RW = S_LoadFunction(img_lib, "IMG_LoadTexture_RW");
 	if (!I_LoadTexture_RW) return -1;
 	I_Init = S_LoadFunction(img_lib, "IMG_Init");
 	if (!I_Init) return -1;
 	I_Quit = S_LoadFunction(img_lib, "IMG_Quit");
 	if (!I_Quit) return -1;
-	T_FontHeight = S_LoadFunction(ttf_lib, "TTF_FontHeight");
+	/*T_FontHeight = S_LoadFunction(ttf_lib, "TTF_FontHeight");
 	if (!T_FontHeight) return -1;
 	T_RenderUTF8_Solid_Wrapped = S_LoadFunction(ttf_lib, "TTF_RenderUTF8_Solid_Wrapped");
 	if (!T_RenderUTF8_Solid_Wrapped) return -1;
@@ -451,7 +490,7 @@ static int lib_load() {
 	if (!T_CloseFont) return -1;
 	T_Quit = S_LoadFunction(ttf_lib, "TTF_Quit");
 	if (!T_Quit) return -1;
-	/*M_PlayChannel = S_LoadFunction(mix_lib, "Mix_PlayChannel");
+	M_PlayChannel = S_LoadFunction(mix_lib, "Mix_PlayChannel");
 	if (!M_PlayChannel) return -1;
 	M_CloseAudio = S_LoadFunction(mix_lib, "Mix_CloseAudio");
 	if (!M_CloseAudio) return -1;
@@ -519,6 +558,16 @@ static int lib_load() {
 	if (!O_SfxrLoadParamsEx) return -1;
 	O_SfxrDestroy = S_LoadFunction(soloud_lib, "Sfxr_destroy");
 	if (!O_SfxrDestroy) return -1;
+	F_CreateFont = S_LoadFunction(fc_lib, "FC_CreateFont");
+	if (!F_CreateFont) return -1;
+	F_LoadFontRW = S_LoadFunction(fc_lib, "FC_LoadFont_RW");
+	if (!F_LoadFontRW) return -1;
+	F_Draw = S_LoadFunction(fc_lib, "FC_Draw");
+	if (!F_Draw) return -1;
+	F_FreeFont = S_LoadFunction(fc_lib, "FC_FreeFont");
+	if (!F_FreeFont) return -1;
+	F_MakeColor = S_LoadFunction(fc_lib, "FC_MakeColor");
+	if (!F_MakeColor) return -1;
 #endif
 	return 0;
 }
@@ -543,14 +592,17 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	engine->layers_num = 0;
 	engine->first_object = NULL;
 	engine->first_layer = SIZE_MAX;
+	engine->ui = NULL;
+	engine->ui_num = 0;
+	engine->ui_texture = NULL;
+	engine->ui_font = NULL;
+	engine->ui_text = NULL;
 	if (lib_load() < 0) return NULL;
 	if (S_Init(SDL_INIT_EVERYTHING) < 0) return NULL;
 #ifdef DEBUG
 	S_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL initialized");
-	if (T_Init() < 0) return NULL;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_ttf initialized");
 	engine->soloud = O_SoloudCreate();
 	if (O_init(engine->soloud) != 0) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SoLoud initialized");
@@ -609,7 +661,8 @@ static int read_files(Engine* engine, const char *path) {
 			if (init_object(engine, data, len, path) < 0) return -1;
 			free(data);
 		} else if (strcmp(ext, "ttf") == 0) {
-			if (init_font(engine, data, len, 24, path) < 0) return -1; //make size dynamic
+			if (init_font(engine, data, len, path) < 0) return -1;
+			free(data);
 		} else if (strcmp(ext, "wav") == 0 || strcmp(ext, "flac") == 0 || strcmp(ext, "mp3") == 0 || strcmp(ext, "ogg") == 0) {
 			if (init_audio(engine, data, len, path, 0) < 0) return -1;
 		} else if (strcmp(ext, "sfx") == 0) {
@@ -675,15 +728,16 @@ static int init_texture(Engine* engine, char* data, size_t len, const char* path
 	return 0;
 }
 
-static int init_font(Engine* engine, char* data, size_t len, int ptsize, const char* path) {
+static int init_font(Engine* engine, char* data, size_t len, const char* path) {
+	engine->fonts = (Font*)realloc(engine->fonts, (engine->fonts_num+1)*sizeof(Font));
+	engine->fonts[engine->fonts_num].normal = F_CreateFont();
+	engine->fonts[engine->fonts_num].bold = F_CreateFont();
+	F_LoadFontRW(engine->fonts[engine->fonts_num].normal, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_NORMAL);
+	F_LoadFontRW(engine->fonts[engine->fonts_num].bold, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_BOLD);
+	engine->fonts[engine->fonts_num].name = (char*)malloc(strlen(path+1));
+	strcpy(engine->fonts[engine->fonts_num].name, path+1);
+	if (!engine->fonts[engine->fonts_num].normal) return -1;
 	engine->fonts_num++;
-	engine->fonts = (Font*)realloc(engine->fonts, engine->fonts_num*sizeof(Font));
-	(engine->fonts + engine->fonts_num-1)->raw = data;
-	(engine->fonts + engine->fonts_num-1)->rw = S_RWFromMem((engine->fonts + engine->fonts_num-1)->raw, len);
-	(engine->fonts + engine->fonts_num-1)->data = T_OpenFontRW((engine->fonts + engine->fonts_num-1)->rw, 0, ptsize);
-	(engine->fonts + engine->fonts_num-1)->name = (char*)malloc(strlen(path+1));
-	strcpy((engine->fonts + engine->fonts_num-1)->name, path+1);
-	if (!engine->fonts->data) return -1;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Font successfully created");
 	return 0;
 }
@@ -727,6 +781,29 @@ static void events(Engine* engine) {
 	}
 }
 
+static int init_ui(Engine* engine, int n) {
+	engine->ui = (Instance**)realloc(engine->ui, (engine->ui_num+1)*sizeof(Instance*));
+	engine->ui[engine->ui_num] = engine->instances + n;
+	if (engine->ui_num == 0) {
+		engine->ui_dst = engine->instances[n].dst;
+		if (engine->instances[n].texture != NULL) {
+			S_DestroyTexture(engine->ui_texture);
+			engine->ui_texture = S_CreateTexture(engine->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, engine->ui_dst.w + 10, engine->ui_dst.h + 10);
+			S_SetRenderTarget(engine->renderer, engine->ui_texture);
+			S_SetRenderDrawColor(engine->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
+			S_RenderDrawRect(engine->renderer, NULL);
+			//S_SetRenderDrawColor(engine->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
+			S_SetRenderTarget(engine->renderer, NULL);
+		}
+		if (engine->instances[n].font != NULL && engine->instances[n].text != NULL) {
+			engine->ui_font = engine->instances[n].font->bold;
+			engine->ui_text = engine->instances[n].text;
+		}
+	}
+	engine->ui_num++;
+	return 0;
+}
+
 static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	cJSON* json = NULL;
 	for (int i = 0; i < engine->objects_num; i++) {
@@ -734,8 +811,6 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 			json = engine->objects[i].data;
 		}
 	}
-	if (json == NULL) return -1;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object found");
 
 	engine->instances = (Instance*)realloc(engine->instances, (engine->instances_num+1)*sizeof(Instance));
 	const cJSON* layer = J_GetObjectItemCaseSensitive(json, "layer");
@@ -753,7 +828,6 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	engine->instances_num++;
 	for (int i = engine->instances_num - 1; i >= sum; i--) engine->instances[i] = engine->instances[i - 1];
 	//engine->instances[sum].id = something;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Layers updated");
 	
 	engine->instances[sum].dst.x = x;
 	engine->instances[sum].dst.y = y;
@@ -765,7 +839,6 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	if (J_IsNumber(height)) {
 		engine->instances[sum].dst.h = height->valueint;
 	} else engine->instances[sum].dst.h = 0;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Position and size set");
 	
 	engine->instances[sum].texture = NULL;
 	const cJSON* sprite = J_GetObjectItemCaseSensitive(json, "sprite");
@@ -776,24 +849,22 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 			}
 		}
 	}
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Texture set");
 
-	engine->instances[sum].text = NULL;
+	engine->instances[sum].font = NULL;
 	const cJSON* font = J_GetObjectItemCaseSensitive(json, "font");
 	if (J_IsString(font) && (font->valuestring != NULL)) {
-		/*for (int i = 0; i < engine->fonts_num; i++) {
+		for (int i = 0; i < engine->fonts_num; i++) {
 			if (strcmp(engine->fonts[i].name, font->valuestring) == 0) {
-				TTF_Font* font = engine->fonts[i].data;
-				SDL_Color color = {255, 255, 255, 255}; //make dynamic
-				const char* string = J_GetObjectItemCaseSensitive(json, "text")->valuestring;
-				SDL_Surface* text = T_RenderUTF8_Solid_Wrapped(font, string, color, 0);
-				if (text == NULL) return -1;
-				engine->instances[sum].text = S_CreateTextureFromSurface(engine->renderer, text);
-				S_FreeSurface(text);
+				engine->instances[sum].font = engine->fonts + i;
 			}
-		}*/
+		}
 	}
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Text set");
+
+	engine->instances[sum].text = NULL;
+	const cJSON* text = J_GetObjectItemCaseSensitive(json, "text");
+	if (J_IsString(text) && (text->valuestring != NULL)) {
+		engine->instances[sum].text = text->valuestring;
+	}
 
 	engine->instances[sum].body = NULL;
 	engine->instances[sum].shape = NULL;
@@ -810,9 +881,12 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 			C_ShapeSetFriction(engine->instances[sum].shape, 0.7);
 		} //add other shapes
 	}
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Physics set");
 
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object successfully created");
+	const cJSON* ui = J_GetObjectItemCaseSensitive(json, "ui");
+	if (J_IsTrue(ui)) {
+		init_ui(engine, sum);
+	}
+
 	return 0;
 }
 
@@ -840,9 +914,12 @@ static void draw(Engine* engine) {
 	S_SetRenderDrawColor(engine->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
 	S_RenderClear(engine->renderer);
 	for (int i = 0; i < engine->instances_num; i++) {
-		S_RenderCopy(engine->renderer, engine->instances[i].texture, NULL, &(engine->instances[i].dst));
-		S_RenderCopy(engine->renderer, engine->instances[i].text, NULL, &(engine->instances[i].dst));
+		Instance* instance = engine->instances + i;
+		S_RenderCopy(engine->renderer, instance->texture, NULL, &(instance->dst));
+		F_Draw(instance->font->normal, engine->renderer, instance->dst.x, instance->dst.y, instance->text);
 	}
+	S_RenderCopy(engine->renderer, engine->ui_texture, NULL, &(engine->ui_dst));
+	F_Draw(engine->ui_font, engine->renderer, engine->ui_dst.x, engine->ui_dst.y, engine->ui_text);
 	S_RenderPresent(engine->renderer);
 }
 
@@ -855,12 +932,13 @@ void Tidal_cleanup(Engine* engine) {
 	free(engine->textures); engine->textures = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Textures freed");
 	for (int i = 0; i < engine->instances_num; i++) {
-		S_DestroyTexture(engine->instances[i].text);
 		C_ShapeFree(engine->instances[i].shape);
 		C_BodyFree(engine->instances[i].body);
 	}
 	free(engine->instances); engine->instances = NULL;
 	free(engine->layers); engine->layers = NULL;
+	S_DestroyTexture(engine->ui_texture);
+	free(engine->ui); engine->ui = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Instances freed");
 	for (int i = 0; i < engine->objects_num; i++) {
 		J_Delete(engine->objects[i].data);
@@ -869,9 +947,8 @@ void Tidal_cleanup(Engine* engine) {
 	free(engine->objects); engine->objects = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Objects freed");
 	for (int i = 0; i < engine->fonts_num; i++) {
-		T_CloseFont(engine->fonts[i].data);
-		S_RWclose(engine->fonts[i].rw);
-		free(engine->fonts[i].raw);
+		F_FreeFont(engine->fonts[i].normal);
+		F_FreeFont(engine->fonts[i].bold);
 		free(engine->fonts[i].name);
 	}
 	free(engine->fonts); engine->fonts = NULL;
@@ -887,7 +964,6 @@ void Tidal_cleanup(Engine* engine) {
 	S_DestroyWindow(engine->window); engine->window = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Window freed");
 	I_Quit();
-	T_Quit();
 	O_deinit(engine->soloud);
 	O_SoloudDestroy(engine->soloud); engine->soloud = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Libs quit");
@@ -896,10 +972,11 @@ void Tidal_cleanup(Engine* engine) {
 #else
 	S_UnloadObject(cjson_lib); cjson_lib = NULL;
 	S_UnloadObject(img_lib); img_lib = NULL;
-	S_UnloadObject(ttf_lib); ttf_lib = NULL;
+	//S_UnloadObject(ttf_lib); ttf_lib = NULL;
 	//S_UnloadObject(mix_lib); mix_lib = NULL;
 	S_UnloadObject(cp_lib); cp_lib = NULL;
 	S_UnloadObject(soloud_lib); soloud_lib = NULL;
+	S_UnloadObject(fc_lib); fc_lib = NULL;
 	S_Quit();
 #ifdef _WIN32
 	//Add Windows dependent code

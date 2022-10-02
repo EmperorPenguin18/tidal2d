@@ -7,7 +7,7 @@
 
 #include <SDL2/SDL.h>
 #include <cjson/cJSON.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_FontCache.h>
 #include <chipmunk/chipmunk.h>
 #include <stdbool.h>
 #include <soloud/soloud_c.h>
@@ -23,16 +23,6 @@ struct Texture {
 };
 typedef struct Texture Texture;
 
-struct Instance {
-	//uuid_t id;
-	SDL_Rect dst;
-	SDL_Texture* texture;
-	SDL_Texture* text;
-	cpBody* body;
-	cpShape* shape;
-};
-typedef struct Instance Instance;
-
 struct Object {
 	char* name;
 	cJSON* data;
@@ -41,9 +31,8 @@ typedef struct Object Object;
 
 struct Font {
 	char* name;
-	char* raw;
-	SDL_RWops* rw;
-	TTF_Font* data;
+	FC_Font* normal;
+	FC_Font* bold;
 };
 typedef struct Font Font;
 
@@ -52,6 +41,17 @@ struct Audio {
 	AudioSource* data;
 };
 typedef struct Audio Audio;
+
+struct Instance {
+	//uuid_t id;
+	SDL_Rect dst;
+	SDL_Texture* texture;
+	Font* font;
+	const char* text;
+	cpBody* body;
+	cpShape* shape;
+};
+typedef struct Instance Instance;
 
 struct Engine {
 	SDL_Window* window;
@@ -73,6 +73,12 @@ struct Engine {
 	size_t layers_num;
 	Object* first_object;
 	size_t first_layer;
+	Instance** ui;
+	size_t ui_num;
+	SDL_Rect ui_dst;
+	SDL_Texture* ui_texture;
+	FC_Font* ui_font;
+	const char* ui_text;
 };
 typedef struct Engine Engine;
 
