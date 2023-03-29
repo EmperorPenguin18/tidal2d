@@ -5,6 +5,7 @@
 #include "tidal.h"
 #include <physfs.h>
 #include <SDL2/SDL_image.h>
+#include <time.h>
 
 static int lib_load();
 static char* read_data(const char*, size_t*);
@@ -20,9 +21,13 @@ static int init_audio(Engine*, char*, size_t, const char*, int);
 static void events(Engine*);
 static void update(Engine*);
 static void draw(Engine*);
+static void event_handler(Engine*, event_t, char*);
 
 static int init_ui(Engine*, int);
+static char* gen_uuid();
+static cpBool collisionCallback(cpArbiter*, cpSpace*, void*);
 static int action_spawn(Engine*, const char*, int, int);
+static int action_checkui(Engine*);
 
 void* sdl_lib = NULL;
 typedef void* (*pf_s_loadobject)(const char*);
@@ -83,6 +88,8 @@ typedef int (*pf_s_setrendertarget)(SDL_Renderer*, SDL_Texture*);
 pf_s_setrendertarget S_SetRenderTarget = NULL;
 typedef int (*pf_s_renderdrawrect)(SDL_Renderer*, const SDL_Rect*);
 pf_s_renderdrawrect S_RenderDrawRect = NULL;
+typedef void (*pf_s_getwindowsize)(SDL_Window*, int*, int*);
+pf_s_getwindowsize S_GetWindowSize = NULL;
 void* physfs_lib = NULL;
 typedef const char* (*pf_p_geterrorbycode)(PHYSFS_ErrorCode);
 pf_p_geterrorbycode P_getErrorByCode = NULL;
@@ -125,6 +132,12 @@ typedef const char* (*pf_j_geterrorptr)();
 pf_j_geterrorptr J_GetErrorPtr = NULL;
 typedef cJSON_bool (*pf_j_istrue)(const cJSON*);
 pf_j_istrue J_IsTrue = NULL;
+typedef cJSON_bool (*pf_j_isobject)(const cJSON*);
+pf_j_isobject J_IsObject = NULL;
+typedef cJSON_bool (*pf_j_isarray)(const cJSON*);
+pf_j_isarray J_IsArray = NULL;
+typedef cJSON_bool (*pf_j_isbool)(const cJSON*);
+pf_j_isbool J_IsBool = NULL;
 void* img_lib = NULL;
 typedef SDL_Texture* (*pf_i_loadtexturerw)(SDL_Renderer*, SDL_RWops*, int);
 pf_i_loadtexturerw I_LoadTexture_RW = NULL;
@@ -191,6 +204,17 @@ typedef void (*pf_c_bodyfree)(cpBody*);
 pf_c_bodyfree C_BodyFree = NULL;
 typedef void (*pf_c_spacefree)(cpSpace*);
 pf_c_spacefree C_SpaceFree = NULL;
+typedef cpCollisionHandler* (*pf_c_spaceadddefaultcollisionhandler)(cpSpace*);
+pf_c_spaceadddefaultcollisionhandler C_SpaceAddDefaultCollisionHandler = NULL;
+typedef void (*pf_c_arbitergetbodies)(const cpArbiter*, cpBody**, cpBody**);
+pf_c_arbitergetbodies C_ArbiterGetBodies = NULL;
+#define C_ARBITER_GET_BODIES(arb, a, b) cpBody *a, *b; C_ArbiterGetBodies(arb, &a, &b);
+typedef cpDataPointer (*pf_c_bodygetuserdata)(const cpBody*);
+pf_c_bodygetuserdata C_BodyGetUserData = NULL;
+typedef void (*pf_c_bodysetuserdata)(cpBody*, const cpDataPointer);
+pf_c_bodysetuserdata C_BodySetUserData = NULL;
+typedef void (*pf_c_bodysetvelocity)(cpBody*, const cpVect);
+pf_c_bodysetvelocity C_BodySetVelocity = NULL;
 void* soloud_lib = NULL;
 typedef Soloud* (*pf_o_soloudcreate)();
 pf_o_soloudcreate O_SoloudCreate = NULL;
@@ -216,6 +240,10 @@ typedef int (*pf_o_sfxrloadparamsex)(Sfxr*, unsigned char*, unsigned int, int, i
 pf_o_sfxrloadparamsex O_SfxrLoadParamsEx = NULL;
 typedef void (*pf_o_sfxrdestroy)(Sfxr*);
 pf_o_sfxrdestroy O_SfxrDestroy = NULL;
+typedef unsigned int (*pf_o_playbackgroundex)(Soloud*, AudioSource*, float, int, unsigned int);
+pf_o_playbackgroundex O_playBackgroundEx = NULL;
+typedef void (*pf_o_setlooping)(Soloud*, unsigned int, int);
+pf_o_setlooping O_setLooping = NULL;
 void* fc_lib;
 typedef FC_Font* (*pf_f_createfont)();
 pf_f_createfont F_CreateFont = NULL;
@@ -259,6 +287,7 @@ static int lib_load() {
 	S_CreateTexture = &SDL_CreateTexture;
 	S_SetRenderTarget = &SDL_SetRenderTarget;
 	S_RenderDrawRect = &SDL_RenderDrawRect;
+	S_GetWindowSize = &SDL_GetWindowSize;
 	P_getErrorByCode = &PHYSFS_getErrorByCode;
 	P_getLastErrorCode = &PHYSFS_getLastErrorCode;
 	P_openRead = &PHYSFS_openRead;
@@ -279,6 +308,9 @@ static int lib_load() {
 	J_IsString = &cJSON_IsString;
 	J_GetErrorPtr = &cJSON_GetErrorPtr;
 	J_IsTrue = &cJSON_IsTrue;
+	J_IsObject = &cJSON_IsObject;
+	J_IsArray = &cJSON_IsArray;
+	J_IsBool = &cJSON_IsBool;
 	I_LoadTexture_RW = &IMG_LoadTexture_RW;
 	I_Init = &IMG_Init;
 	I_Quit = &IMG_Quit;
@@ -310,6 +342,11 @@ static int lib_load() {
 	C_ShapeFree = &cpShapeFree;
 	C_BodyFree = &cpBodyFree;
 	C_SpaceFree = &cpSpaceFree;
+	C_SpaceAddDefaultCollisionHandler = &cpSpaceAddDefaultCollisionHandler;
+	C_ArbiterGetBodies = &cpArbiterGetBodies;
+	C_BodyGetUserData = &cpBodyGetUserData;
+	C_BodySetUserData = &cpBodySetUserData;
+	C_BodySetVelocity = &cpBodySetVelocity;
 	O_SoloudCreate = &Soloud_create;
 	O_WavCreate = &Wav_create;
 	O_WavLoadMemEx = &Wav_loadMemEx;
@@ -322,6 +359,8 @@ static int lib_load() {
 	O_SfxrCreate = &Sfxr_create;
 	O_SfxrLoadParamsEx = &Sfxr_loadParamsMemEx;
 	O_SfxrDestroy = &Sfxr_destroy;
+	O_playBackgroundEx = &Soloud_playBackgroundEx;
+	O_setLooping = &Soloud_setLooping;
 	F_CreateFont = &FC_CreateFont;
 	F_LoadFontRW = &FC_LoadFont_RW;
 	F_Draw = &FC_Draw;
@@ -436,6 +475,8 @@ static int lib_load() {
 	if (!S_SetRenderTarget) return -1;
 	S_RenderDrawRect = S_LoadFunction(sdl_lib, "SDL_RenderDrawRect");
 	if (!S_RenderDrawRect) return -1;
+	S_GetWindowSize = S_LoadFunction(sdl_lib, "SDL_GetWindowSize");
+	if (!S_GetWindowSize) return -1;
 	P_openRead = S_LoadFunction(physfs_lib, "PHYSFS_openRead");
 	if (!P_openRead) return -1;
 	P_fileLength = S_LoadFunction(physfs_lib, "PHYSFS_fileLength");
@@ -472,6 +513,12 @@ static int lib_load() {
 	if (!J_GetErrorPtr) return -1;
 	J_IsTrue = S_LoadFunction(cjson_lib, "cJSON_IsTrue");
 	if (!J_IsTrue) return -1;
+	J_IsObject = S_LoadFunction(cjson_lib, "cJSON_IsObject");
+	if (!J_IsObject) return -1;
+	J_IsArray = S_LoadFunction(cjson_lib, "cJSON_IsArray");
+	if (!J_IsArray) return -1;
+	J_IsBool = S_LoadFunction(cjson_lib, "cJSON_IsBool");
+	if (!J_IsBool) return -1;
 	I_LoadTexture_RW = S_LoadFunction(img_lib, "IMG_LoadTexture_RW");
 	if (!I_LoadTexture_RW) return -1;
 	I_Init = S_LoadFunction(img_lib, "IMG_Init");
@@ -534,6 +581,16 @@ static int lib_load() {
 	if (!C_BodyFree) return -1;
 	C_SpaceFree = S_LoadFunction(cp_lib, "cpSpaceFree");
 	if (!C_SpaceFree) return -1;
+	C_SpaceAddDefaultCollisionHandler = S_LoadFunction(cp_lib, "cpSpaceAddDefaultCollisionHandler");
+	if (!C_SpaceAddDefaultCollisionHandler) return -1;
+	C_ArbiterGetBodies = S_LoadFunction(cp_lib, "cpArbiterGetBodies");
+	if (!C_ArbiterGetBodies) return -1;
+	C_BodyGetUserData = S_LoadFunction(cp_lib, "cpBodyGetUserData");
+	if (!C_BodyGetUserData) return -1;
+	C_BodySetUserData = S_LoadFunction(cp_lib, "cpBodySetUserData");
+	if (!C_BodySetUserData) return -1;
+	C_BodySetVelocity = S_LoadFunction(cp_lib, "cpBodySetVelocity");
+	if (!C_BodySetVelocity) return -1;
 	O_SoloudCreate = S_LoadFunction(soloud_lib, "Soloud_create");
 	if (!O_SoloudCreate) return -1;
 	O_WavCreate = S_LoadFunction(soloud_lib, "Wav_create");
@@ -558,6 +615,10 @@ static int lib_load() {
 	if (!O_SfxrLoadParamsEx) return -1;
 	O_SfxrDestroy = S_LoadFunction(soloud_lib, "Sfxr_destroy");
 	if (!O_SfxrDestroy) return -1;
+	O_playBackgroundEx = S_LoadFunction(soloud_lib, "Soloud_playBackgroundEx");
+	if (!O_playBackgroundEx) return -1;
+	O_setLooping = S_LoadFunction(soloud_lib, "Soloud_setLooping");
+	if (!O_setLooping) return -1;
 	F_CreateFont = S_LoadFunction(fc_lib, "FC_CreateFont");
 	if (!F_CreateFont) return -1;
 	F_LoadFontRW = S_LoadFunction(fc_lib, "FC_LoadFont_RW");
@@ -597,6 +658,13 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	engine->ui_texture = NULL;
 	engine->ui_font = NULL;
 	engine->ui_text = NULL;
+	engine->col_hand = NULL;
+	for (size_t i = 0; i < EVENTS_NUM; i++) {
+		engine->events[i] = NULL;
+		engine->events_num[i] = 0;
+	}
+	time_t t;
+	srand((unsigned) time(&t));
 	if (lib_load() < 0) return NULL;
 	if (S_Init(SDL_INIT_EVERYTHING) < 0) return NULL;
 #ifdef DEBUG
@@ -617,7 +685,9 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	if (P_init(argv[0]) == 0) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "PHYSFS initialized");
 	engine->space = C_SpaceNew();
-	C_SpaceSetGravity(engine->space, cpv(0, 100));
+	engine->col_hand = C_SpaceAddDefaultCollisionHandler(engine->space);
+	engine->col_hand->preSolveFunc = collisionCallback;
+	engine->col_hand->userData = engine; //Set the collision handler's user data to the context
 	if (argc > 2) {
 		S_Log("Too many arguments, only one expected");
 		return NULL;
@@ -629,6 +699,16 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files read");
 	if (engine->objects_num > 0) action_spawn(engine, engine->first_object->name, 0, 0);
 	return engine;
+}
+
+/* Part of how Chipmunk2D handles collisions. Is called every time two things collide.
+ * Triggers an event for each body colliding.
+ */
+static cpBool collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
+	C_ARBITER_GET_BODIES(arb, a, b);
+	event_handler(data, TIDAL_EVENT_COLLISION, C_BodyGetUserData(a));
+	event_handler(data, TIDAL_EVENT_COLLISION, C_BodyGetUserData(b));
+	return cpTrue;
 }
 
 static int read_files(Engine* engine, const char *path) {
@@ -776,8 +856,42 @@ void Tidal_run(Engine* engine) {
 static void events(Engine* engine) {
 	SDL_Event event;
 	S_PollEvent(&event);
-	if (event.type == SDL_QUIT) {
-		engine->running = false;
+	switch (event.type) {
+		case SDL_QUIT:
+			event_handler(engine, TIDAL_EVENT_QUIT, NULL);
+			break;
+		case SDL_KEYDOWN:
+			switch (event.key.keysym.sym) {
+				case SDLK_w:
+					event_handler(engine, TIDAL_EVENT_KEYW, NULL);
+					break;
+				case SDLK_a:
+					event_handler(engine, TIDAL_EVENT_KEYA, NULL);
+					break;
+				case SDLK_s:
+					event_handler(engine, TIDAL_EVENT_KEYS, NULL);
+					break;
+				case SDLK_d:
+					event_handler(engine, TIDAL_EVENT_KEYD, NULL);
+					break;
+				case SDLK_SPACE:
+					event_handler(engine, TIDAL_EVENT_KEYSPACE, NULL);
+					break;
+				case SDLK_RETURN:
+					event_handler(engine, TIDAL_EVENT_KEYENTER, NULL);
+					break;
+			}
+			break;
+		case SDL_MOUSEBUTTONUP:
+			switch (event.button.button) {
+				case SDL_BUTTON_LEFT:
+					event_handler(engine, TIDAL_EVENT_MOUSELEFT, NULL);
+					break;
+				case SDL_BUTTON_RIGHT:
+					event_handler(engine, TIDAL_EVENT_MOUSERIGHT, NULL);
+					break;
+			}
+			break;
 	}
 }
 
@@ -804,30 +918,69 @@ static int init_ui(Engine* engine, int n) {
 	return 0;
 }
 
+static int init_action(Engine* engine, event_t ev, const cJSON* action, char* id) {
+	engine->events[ev] = (Action*)realloc(engine->events[ev], (engine->events_num[ev]+1)*sizeof(Action));
+	engine->events[ev][engine->events_num[ev]].data = action;
+	engine->events[ev][engine->events_num[ev]].id = id;
+	engine->events_num[ev]++;
+	return 0;
+}
+
+static char* gen_uuid() {
+	char v[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+	//3fb17ebc-bc38-4939-bc8b-74f2443281d4
+	//8 dash 4 dash 4 dash 4 dash 12
+	static char buf[37] = {0};
+	
+	//gen random for all spaces because lazy
+	for(int i = 0; i < 36; ++i) {
+		buf[i] = v[rand()%16];
+	}
+	
+	//put dashes in place
+	buf[8] = '-';
+	buf[13] = '-';
+	buf[18] = '-';
+	buf[23] = '-';
+	
+	//needs end byte
+	buf[36] = '\0';
+	
+	return buf;
+}
+
+/* Action to instantiate an object. Currently quite complex because all the processing
+ * of JSON and assigning resources happens in this function. Also has to sort out the
+ * layers each time. Will probably eventually be a performance bottleneck.
+ */
 static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	cJSON* json = NULL;
-	for (int i = 0; i < engine->objects_num; i++) {
+	for (size_t i = 0; i < engine->objects_num; i++) {
 		if (strcmp(name, engine->objects[i].name) == 0) {
 			json = engine->objects[i].data;
+			break;
 		}
 	}
 
 	engine->instances = (Instance*)realloc(engine->instances, (engine->instances_num+1)*sizeof(Instance));
 	const cJSON* layer = J_GetObjectItemCaseSensitive(json, "layer");
-	int num = 0, n, sum = 0;
-	if (J_IsNumber(layer)) {
-		num = layer->valueint;
-	}
-	if ((num+1) > engine->layers_num) {
+	int num = 0;
+	if (J_IsNumber(layer)) num = layer->valueint;
+	//If the specified layer is higher than the highest, fill them all out
+	if (num+1 > engine->layers_num) {
 		engine->layers = (size_t*)realloc(engine->layers, (num+1)*sizeof(size_t));
-		for (int i = engine->layers_num; i < num+1; i++) engine->layers[i] = 0;
+		for (size_t i = engine->layers_num; i < num+1; i++) engine->layers[i] = 0;
 		engine->layers_num = num+1;
 	}
-	for (n = 0; n < num; n++) sum += engine->layers[n];
+	int sum = 0;
+	//Get the spot where the new instance will slot in
+	for (size_t i = 0; i < num; i++) sum += engine->layers[i];
 	engine->layers[num]++;
 	engine->instances_num++;
-	for (int i = engine->instances_num - 1; i >= sum; i--) engine->instances[i] = engine->instances[i - 1];
-	//engine->instances[sum].id = something;
+	//Make a spot in the array
+	for (size_t i = engine->instances_num - 1; i > sum; i--) engine->instances[i] = engine->instances[i - 1];
+	engine->instances[sum].id = gen_uuid();
+	engine->instances[sum].layer = num; //Store layer for later
 	
 	engine->instances[sum].dst.x = x;
 	engine->instances[sum].dst.y = y;
@@ -843,7 +996,7 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	engine->instances[sum].texture = NULL;
 	const cJSON* sprite = J_GetObjectItemCaseSensitive(json, "sprite");
 	if (J_IsString(sprite) && (sprite->valuestring != NULL)) {
-		for (int i = 0; i < engine->textures_num; i++) {
+		for (size_t i = 0; i < engine->textures_num; i++) {
 			if (strcmp(engine->textures[i].name, sprite->valuestring) == 0) {
 				engine->instances[sum].texture = engine->textures[i].data;
 			}
@@ -853,7 +1006,7 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	engine->instances[sum].font = NULL;
 	const cJSON* font = J_GetObjectItemCaseSensitive(json, "font");
 	if (J_IsString(font) && (font->valuestring != NULL)) {
-		for (int i = 0; i < engine->fonts_num; i++) {
+		for (size_t i = 0; i < engine->fonts_num; i++) {
 			if (strcmp(engine->fonts[i].name, font->valuestring) == 0) {
 				engine->instances[sum].font = engine->fonts + i;
 			}
@@ -873,11 +1026,12 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 		if (strcmp(shape->valuestring, "box") == 0) { //set mass and friction dynamically
 			engine->instances[sum].body = C_SpaceAddBody(engine->space,
 				C_BodyNew(1, C_MomentForBox(1, engine->instances[sum].dst.w,
-						engine->instances[sum].dst.h)));
+				engine->instances[sum].dst.h)));
 			C_BodySetPosition(engine->instances[sum].body, cpv(engine->instances[sum].dst.x,
-						engine->instances[sum].dst.y));
+				engine->instances[sum].dst.y));
+			C_BodySetUserData(engine->instances[sum].body, engine->instances[sum].id);
 			engine->instances[sum].shape = C_SpaceAddShape(engine->space, C_BoxShapeNew(engine->instances[sum].body,
-						engine->instances[sum].dst.w, engine->instances[sum].dst.h, 0));
+				engine->instances[sum].dst.w, engine->instances[sum].dst.h, 0));
 			C_ShapeSetFriction(engine->instances[sum].shape, 0.7);
 		} //add other shapes
 	}
@@ -887,23 +1041,160 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 		init_ui(engine, sum);
 	}
 
+	const cJSON* events = J_GetObjectItemCaseSensitive(json, "events");
+	if (J_IsObject(events)) {
+		const cJSON* event = NULL;
+		cJSON_ArrayForEach(event, events) {
+			if (J_IsArray(event)) {
+				event_t ev = 0;
+				if (strcmp(event->string, "collision") == 0) {
+					ev = TIDAL_EVENT_COLLISION;
+				} else if (strcmp(event->string, "quit") == 0) {
+					ev = TIDAL_EVENT_QUIT;
+				} else if (strcmp(event->string, "key_w") == 0) {
+					ev = TIDAL_EVENT_KEYW;
+				} else if (strcmp(event->string, "key_a") == 0) {
+					ev = TIDAL_EVENT_KEYA;
+				} else if (strcmp(event->string, "key_s") == 0) {
+					ev = TIDAL_EVENT_KEYS;
+				} else if (strcmp(event->string, "key_d") == 0) {
+					ev = TIDAL_EVENT_KEYD;
+				} else if (strcmp(event->string, "key_space") == 0) {
+					ev = TIDAL_EVENT_KEYSPACE;
+				} else if (strcmp(event->string, "key_enter") == 0) {
+					ev = TIDAL_EVENT_KEYENTER;
+				} else if (strcmp(event->string, "mouse_left") == 0) {
+					ev = TIDAL_EVENT_MOUSELEFT;
+				} else if (strcmp(event->string, "mouse_right") == 0) {
+					ev = TIDAL_EVENT_MOUSERIGHT;
+				} else if (strcmp(event->string, "creation") == 0) {
+					ev = TIDAL_EVENT_CREATION;
+				} else if (strcmp(event->string, "destruction") == 0) {
+					ev = TIDAL_EVENT_DESTRUCTION;
+				} else if (strcmp(event->string, "check_ui") == 0) {
+					ev = TIDAL_EVENT_CHECKUI;
+				} else if (strcmp(event->string, "leave") == 0) {
+					ev = TIDAL_EVENT_LEAVE;
+				} else {
+					S_Log("Invalid event type found");
+					continue;
+				}
+				const cJSON* action = NULL;
+				cJSON_ArrayForEach(action, event) {
+					if (J_IsObject(action)) {
+						init_action(engine, ev, action, engine->instances[sum].id);
+					}
+				}
+			} else {
+				S_Log("Invalid object structure found");
+			}
+		}
+	}
+
+	event_handler(engine, TIDAL_EVENT_CREATION, engine->instances[sum].id);
+
 	return 0;
 }
 
-/*static int action_sound(const char* name) {
-	for (int i = 0; i < engine->audio_num; i++) { //temporary
-		if (strcmp((engine->audio+i)->name, J_GetObjectItemCaseSensitive(json, "sound")->valuestring) == 0) {
-			O_playEx(engine->soloud, (engine->audio+i)->data, 1.0, 0.0, 0, 0);
+static int action_destroy(Engine* engine, char* id) {
+	event_handler(engine, TIDAL_EVENT_DESTRUCTION, id);
+
+	Instance* instance = NULL;
+	size_t n;
+	for (n = 0; n < engine->instances_num; n++) {
+		if (strcmp(id, engine->instances[n].id) == 0) {
+			instance = engine->instances+n;
+			break;
 		}
 	}
-}*/
+
+	C_ShapeFree(instance->shape);
+	C_BodyFree(instance->body);
+
+	for (size_t i = n; i < engine->instances_num-1; i++) engine->instances[i] = engine->instances[i + 1];
+	engine->instances_num -= 1;
+
+	engine->layers[instance->layer] -= 1;
+
+	return 0;
+}
+
+static int action_move(Engine* engine, char* id, int x, int y, bool relative) {
+	cpBody* body = NULL;
+	for (size_t i = 0; i < engine->instances_num; i++) {
+		if (strcmp(engine->instances[i].id, id) == 0) {
+			body = engine->instances[i].body;
+			break;
+		}
+	}
+
+	if (relative) {
+		cpVect v = C_BodyGetPosition(body);
+		int rel_x = v.x + x;
+		int rel_y = v.y + y;
+		C_BodySetPosition(body, cpv(rel_x, rel_y));
+	} else C_BodySetPosition(body, cpv(x, y));
+	return 0;
+}
+
+static int action_speed(Engine* engine, char* id, int h, int v) {
+	for (size_t i = 0; i < engine->instances_num; i++) {
+		if (strcmp(engine->instances[i].id, id) == 0) {
+			C_BodySetVelocity(engine->instances[i].body, cpv(h, v));
+			break;
+		}
+	}
+	return 0;
+}
+
+static int action_gravity(Engine* engine, int h, int v) {
+	C_SpaceSetGravity(engine->space, cpv(h, v));
+	return 0;
+}
+
+static int action_sound(Engine* engine, char* file) {
+	for (size_t i = 0; i < engine->audio_num; i++) {
+		if (strcmp(engine->audio[i].name, file) == 0) {
+			O_playEx(engine->soloud, engine->audio[i].data, 1.0, 0.0, 0, 0);
+			break;
+		}
+	}
+	return 0;
+}
+
+static int action_music(Engine* engine, char* file) {
+	for (size_t i = 0; i < engine->audio_num; i++) {
+		if (strcmp(engine->audio[i].name, file) == 0) {
+			unsigned int h = O_playBackgroundEx(engine->soloud, engine->audio[i].data, 1.0, 0, 0);
+			O_setLooping(engine->soloud, h, 1);
+			break;
+		}
+	}
+	return 0;
+}
+
+static int action_close(Engine* engine) {
+	engine->running = false;
+	return 0;
+}
+
+static int action_checkui(Engine* engine) {
+	event_handler(engine, TIDAL_EVENT_CHECKUI, NULL);
+	return 0;
+}
 
 static void update(Engine* engine) {
 	for (int i = 0; i < engine->instances_num; i++) {
 		if (engine->instances[i].body != NULL) {
+			SDL_Rect* dst = &(engine->instances[i].dst);
+			int w, h;
+			S_GetWindowSize(engine->window, &w, &h);
 			cpVect pos = C_BodyGetPosition(engine->instances[i].body);
-			engine->instances[i].dst.x = pos.x;
-			engine->instances[i].dst.y = pos.y;
+			if ( (dst->x < w && pos.x > w) || (dst->x > 0-dst->w && pos.x < 0-dst->w) || (dst->y < h && pos.y > h) || (dst->y > 0-dst->h && pos.y < 0-dst->h) ) {
+				event_handler(engine, TIDAL_EVENT_LEAVE, engine->instances[i].id);
+			}
+			dst->x = pos.x;
+			dst->y = pos.y;
 		}
 	}
 	C_SpaceStep(engine->space, 1.0/60.0);
@@ -921,6 +1212,72 @@ static void draw(Engine* engine) {
 	S_RenderCopy(engine->renderer, engine->ui_texture, NULL, &(engine->ui_dst));
 	F_Draw(engine->ui_font, engine->renderer, engine->ui_dst.x, engine->ui_dst.y, engine->ui_text);
 	S_RenderPresent(engine->renderer);
+}
+
+/* Engine struct stores a 2D array. The first dimension is the different event types (LEAVE, CREATION etc).
+ * The second dimension is dynamically sized and re-sized, and stores all the different actions that instances
+ * have added.
+ *
+ * This function takes the context, event type, and the id of the calling instance, and will loop over
+ * all the actions executing them based on the specifications provided by an object.
+ */
+static void event_handler(Engine* engine, event_t ev, char* id) {
+	for (int i = 0; i < engine->events_num[ev]; i++) {
+		Action* action = engine->events[ev] + i;
+		//Special case: some events only trigger based on instance id
+		if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
+		    ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION) {
+			if (action->id != id) continue;
+		}
+		const cJSON* type = J_GetObjectItemCaseSensitive(action->data, "type");
+		if (J_IsString(type) && (type->valuestring != NULL)) {
+			if (strcmp(type->valuestring, "spawn") == 0) {
+				const cJSON* object = J_GetObjectItemCaseSensitive(action->data, "object");
+				const cJSON* x = J_GetObjectItemCaseSensitive(action->data, "x");
+				const cJSON* y = J_GetObjectItemCaseSensitive(action->data, "y");
+				if (J_IsString(object) && (object->valuestring != NULL) && J_IsNumber(x) && J_IsNumber(y)) {
+					action_spawn(engine, object->valuestring, x->valueint, y->valueint);
+				}
+			} else if (strcmp(type->valuestring, "destroy") == 0) {
+				action_destroy(engine, action->id);
+			} else if (strcmp(type->valuestring, "move") == 0) {
+				const cJSON* x = J_GetObjectItemCaseSensitive(action->data, "x");
+				const cJSON* y = J_GetObjectItemCaseSensitive(action->data, "y");
+				const cJSON* relative = J_GetObjectItemCaseSensitive(action->data, "relative");
+				if (J_IsNumber(x) && J_IsNumber(y) && J_IsBool(relative)) {
+					action_move(engine, action->id, x->valueint, y->valueint, relative->valueint);
+				}
+			} else if (strcmp(type->valuestring, "speed") == 0) {
+				const cJSON* h = J_GetObjectItemCaseSensitive(action->data, "h");
+				const cJSON* v = J_GetObjectItemCaseSensitive(action->data, "v");
+				if (J_IsNumber(h) && J_IsNumber(v)) {
+					action_speed(engine, action->id, h->valueint, v->valueint);
+				}
+			} else if (strcmp(type->valuestring, "gravity") == 0) {
+				const cJSON* h = J_GetObjectItemCaseSensitive(action->data, "h");
+				const cJSON* v = J_GetObjectItemCaseSensitive(action->data, "v");
+				if (J_IsNumber(h) && J_IsNumber(v)) {
+					action_gravity(engine, h->valueint, v->valueint);
+				}
+			} else if (strcmp(type->valuestring, "sound") == 0) {
+				const cJSON* file = J_GetObjectItemCaseSensitive(action->data, "file");
+				if (J_IsString(file) && (file->valuestring != NULL)) {
+					action_sound(engine, file->valuestring);
+				}
+			} else if (strcmp(type->valuestring, "music") == 0) {
+				const cJSON* file = J_GetObjectItemCaseSensitive(action->data, "file");
+				if (J_IsString(file) && (file->valuestring != NULL)) {
+					action_music(engine, file->valuestring);
+				}
+			} else if (strcmp(type->valuestring, "close") == 0) {
+				action_close(engine);
+			} else if (strcmp(type->valuestring, "checkui") == 0) {
+				action_checkui(engine);
+			} else {
+				S_Log("Invalid action type found");
+			}
+		}
+	}
 }
 
 void Tidal_cleanup(Engine* engine) {
@@ -959,6 +1316,10 @@ void Tidal_cleanup(Engine* engine) {
 	}
 	free(engine->audio); engine->audio = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio freed");
+	for (int i = 0; i < EVENTS_NUM; i++) {
+		free(engine->events[i]);
+		engine->events[i] = NULL;
+	}
 	C_SpaceFree(engine->space); engine->space = NULL;
 	S_DestroyRenderer(engine->renderer); engine->renderer = NULL;
 	S_DestroyWindow(engine->window); engine->window = NULL;

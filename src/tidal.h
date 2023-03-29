@@ -11,11 +11,29 @@
 #include <chipmunk/chipmunk.h>
 #include <stdbool.h>
 #include <soloud/soloud_c.h>
-//#include <uuid/uuid.h>
 
 #ifndef STATIC
 #include <dlfcn.h>
 #endif
+
+enum event_t {
+	TIDAL_EVENT_COLLISION,
+	TIDAL_EVENT_QUIT,
+	TIDAL_EVENT_KEYW,
+	TIDAL_EVENT_KEYA,
+	TIDAL_EVENT_KEYS,
+	TIDAL_EVENT_KEYD,
+	TIDAL_EVENT_KEYSPACE,
+	TIDAL_EVENT_KEYENTER,
+	TIDAL_EVENT_MOUSELEFT,
+	TIDAL_EVENT_MOUSERIGHT,
+	TIDAL_EVENT_CREATION,
+	TIDAL_EVENT_DESTRUCTION,
+	TIDAL_EVENT_CHECKUI,
+	TIDAL_EVENT_LEAVE,
+	EVENTS_NUM
+};
+typedef enum event_t event_t;
 
 struct Texture {
 	char* name;
@@ -43,15 +61,22 @@ struct Audio {
 typedef struct Audio Audio;
 
 struct Instance {
-	//uuid_t id;
+	char* id;
 	SDL_Rect dst;
 	SDL_Texture* texture;
 	Font* font;
 	const char* text;
 	cpBody* body;
 	cpShape* shape;
+	size_t layer;
 };
 typedef struct Instance Instance;
+
+struct Action {
+	char* id;
+	const cJSON* data;
+};
+typedef struct Action Action;
 
 struct Engine {
 	SDL_Window* window;
@@ -79,6 +104,9 @@ struct Engine {
 	SDL_Texture* ui_texture;
 	FC_Font* ui_font;
 	const char* ui_text;
+	cpCollisionHandler* col_hand;
+	Action* events[EVENTS_NUM];
+	size_t events_num[EVENTS_NUM];
 };
 typedef struct Engine Engine;
 
