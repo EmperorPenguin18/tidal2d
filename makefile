@@ -5,10 +5,10 @@ OPTS =
 endif
 
 build: src/*.c
-	gcc -g -Og -D DEBUG -Wall $(OPTS) src/*.c -o tidalpp
+	gcc -g -Og -D DEBUG -Wall -I./ $(OPTS) src/*.c -o tidalpp
 
 release: src/*.c
-	gcc -O3 $(OPTS) src/*.c -o tidalpp
+	gcc -O3 -I./ $(OPTS) src/*.c -o tidalpp
 
 install: src/*.h tidalpp
 	mkdir -p /usr/include/tidal

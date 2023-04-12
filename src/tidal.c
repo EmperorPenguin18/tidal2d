@@ -3,20 +3,21 @@
 //https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
 
 #include "tidal.h"
+#include "embedded_assets.h"
 #include <physfs.h>
 #include <SDL2/SDL_image.h>
 #include <time.h>
 
 static int lib_load();
-static char* read_data(const char*, size_t*);
-static int read_files(Engine*, const char*);
+static unsigned char* read_data(const char*, size_t*);
+static int read_files(Engine*, const char*, const char*);
 static const char* getextension(const char*);
-static void prepend(char*, const char*);
+//static void prepend(char*, const char*);
 
-static int init_object(Engine*, char*, size_t, const char*);
-static int init_texture(Engine*, char*, size_t, const char*);
-static int init_font(Engine*, char*, size_t, const char*);
-static int init_audio(Engine*, char*, size_t, const char*, int);
+static int init_object(Engine*, unsigned char*, size_t, const char*);
+static int init_texture(Engine*, unsigned char*, size_t, const char*);
+static int init_font(Engine*, unsigned char*, size_t, const char*);
+static int init_audio(Engine*, unsigned char*, size_t, const char*, int);
 
 static void events(Engine*);
 static void update(Engine*);
@@ -117,6 +118,8 @@ typedef int (*pf_p_mount)(const char*, const char*, int);
 pf_p_mount P_mount = NULL;
 typedef int (*pf_p_deinit)();
 pf_p_deinit P_deinit = NULL;
+typedef int (*pf_p_mountmemory)(const void*, PHYSFS_uint64, void(*)(void*), const char*, const char*, int);
+pf_p_mountmemory P_mountMemory = NULL;
 void* cjson_lib = NULL;
 typedef cJSON* (*pf_j_getobjectitemcasesensitive)(const cJSON*, const char*);
 pf_j_getobjectitemcasesensitive J_GetObjectItemCaseSensitive = NULL;
@@ -255,6 +258,19 @@ typedef void (*pf_f_freefont)(FC_Font*);
 pf_f_freefont F_FreeFont = NULL;
 typedef SDL_Color (*pf_f_makecolor)(Uint8, Uint8, Uint8, Uint8);
 pf_f_makecolor F_MakeColor = NULL;
+void* evp_lib;
+typedef EVP_CIPHER_CTX* (*pf_e_cipherctxnew)();
+pf_e_cipherctxnew E_CIPHER_CTX_new = NULL;
+typedef const EVP_CIPHER* (*pf_e_aes256cbc)();
+pf_e_aes256cbc E_aes_256_cbc = NULL;
+typedef int (*pf_e_decryptinitex)(EVP_CIPHER_CTX*, const EVP_CIPHER*, ENGINE*, const unsigned char*, const unsigned char*);
+pf_e_decryptinitex E_DecryptInit_ex = NULL;
+typedef int (*pf_e_decryptupdate)(EVP_CIPHER_CTX*, unsigned char*, int*, const unsigned char*, int);
+pf_e_decryptupdate E_DecryptUpdate = NULL;
+typedef int (*pf_e_decryptfinalex)(EVP_CIPHER_CTX*, unsigned char*, int*);
+pf_e_decryptfinalex E_DecryptFinal_ex = NULL;
+typedef void (*pf_e_cipherctxfree)(EVP_CIPHER_CTX*);
+pf_e_cipherctxfree E_CIPHER_CTX_free = NULL;
 
 static int lib_load() {
 #ifdef STATIC
@@ -301,6 +317,7 @@ static int lib_load() {
 	P_init = &PHYSFS_init;
 	P_mount = &PHYSFS_mount;
 	P_deinit = &PHYSFS_deinit;
+	P_mountMemory = &PHYSFS_mountMemory;
 	J_GetObjectItemCaseSensitive = &cJSON_GetObjectItemCaseSensitive;
 	J_ParseWithLength = &cJSON_ParseWithLength;
 	J_Delete = &cJSON_Delete;
@@ -366,6 +383,12 @@ static int lib_load() {
 	F_Draw = &FC_Draw;
 	F_FreeFont = &FC_FreeFont;
 	F_MakeColor = &FC_MakeColor;
+	E_CIPHER_CTX_new = &EVP_CIPHER_CTX_new;
+	E_aes_256_cbc = &EVP_aes_256_cbc;
+	E_DecryptInit_ex = &EVP_DecryptInit_ex;
+	E_DecryptUpdate = &EVP_DecryptUpdate;
+	E_DecryptFinal_ex = &EVP_DecryptFinal_ex;
+	E_CIPHER_CTX_free = &EVP_CIPHER_CTX_free;
 #else
 #ifdef _WIN32
 	//Add Windows dependent code
@@ -424,6 +447,8 @@ static int lib_load() {
 	if (!soloud_lib) return -1;
 	fc_lib = S_LoadObject("libSDL2_FontCache.so");
 	if (!fc_lib) return -1;
+	evp_lib = S_LoadObject("libcrypto.so");
+	if (!evp_lib) return -1;
 #endif
 	S_DestroyTexture = S_LoadFunction(sdl_lib, "SDL_DestroyTexture");
 	if (!S_DestroyTexture) return -1;
@@ -499,6 +524,8 @@ static int lib_load() {
 	if (!P_mount) return -1;
 	P_deinit = S_LoadFunction(physfs_lib, "PHYSFS_deinit");
 	if (!P_deinit) return -1;
+	P_mountMemory = S_LoadFunction(physfs_lib, "PHYSFS_mountMemory");
+	if (!P_mountMemory) return -1;
 	J_GetObjectItemCaseSensitive = S_LoadFunction(cjson_lib, "cJSON_GetObjectItemCaseSensitive");
 	if (!J_GetObjectItemCaseSensitive) return -1;
 	J_ParseWithLength = S_LoadFunction(cjson_lib, "cJSON_ParseWithLength");
@@ -629,8 +656,77 @@ static int lib_load() {
 	if (!F_FreeFont) return -1;
 	F_MakeColor = S_LoadFunction(fc_lib, "FC_MakeColor");
 	if (!F_MakeColor) return -1;
+	E_CIPHER_CTX_new = S_LoadFunction(evp_lib, "EVP_CIPHER_CTX_new");
+	if (!E_CIPHER_CTX_new) return -1;
+	E_aes_256_cbc = S_LoadFunction(evp_lib, "EVP_aes_256_cbc");
+	if (!E_aes_256_cbc) return -1;
+	E_DecryptInit_ex = S_LoadFunction(evp_lib, "EVP_DecryptInit_ex");
+	if (!E_DecryptInit_ex) return -1;
+	E_DecryptUpdate = S_LoadFunction(evp_lib, "EVP_DecryptUpdate");
+	if (!E_DecryptUpdate) return -1;
+	E_DecryptFinal_ex = S_LoadFunction(evp_lib, "EVP_DecryptFinal_ex");
+	if (!E_DecryptFinal_ex) return -1;
+	E_CIPHER_CTX_free = S_LoadFunction(evp_lib, "EVP_CIPHER_CTX_free");
+	if (!E_CIPHER_CTX_free) return -1;
 #endif
 	return 0;
+}
+
+static int findn(int num) {
+	if (num == 0) return 1;
+	int n = 0;
+	while (num) {
+		num /= 10;
+		n++;
+	}
+	return n;
+}
+
+static void handleErrors(void)
+{
+    //ERR_print_errors_fp(stderr);
+    abort();
+}
+
+static int decrypt(const unsigned char *ciphertext, int ciphertext_len, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext) {
+    EVP_CIPHER_CTX *ctx;
+    int len;
+    int plaintext_len;
+
+    /* Create and initialise the context */
+    if(!(ctx = E_CIPHER_CTX_new()))
+        handleErrors();
+
+    /*
+     * Initialise the decryption operation. IMPORTANT - ensure you use a key
+     * and IV size appropriate for your cipher
+     * In this example we are using 256 bit AES (i.e. a 256 bit key). The
+     * IV size for *most* modes is the same as the block size. For AES this
+     * is 128 bits
+     */
+    if(1 != E_DecryptInit_ex(ctx, E_aes_256_cbc(), NULL, key, iv))
+        handleErrors();
+
+    /*
+     * Provide the message to be decrypted, and obtain the plaintext output.
+     * EVP_DecryptUpdate can be called multiple times if necessary.
+     */
+    if(1 != E_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
+        handleErrors();
+    plaintext_len = len;
+
+    /*
+     * Finalise the decryption. Further plaintext bytes may be written at
+     * this stage.
+     */
+    if(1 != E_DecryptFinal_ex(ctx, plaintext + len, &len))
+        handleErrors();
+    plaintext_len += len;
+
+    /* Clean up */
+    E_CIPHER_CTX_free(ctx);
+
+    return plaintext_len;
 }
 
 Engine* Tidal_init(int argc, char *argv[]) {
@@ -688,15 +784,24 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	engine->col_hand = C_SpaceAddDefaultCollisionHandler(engine->space);
 	engine->col_hand->preSolveFunc = collisionCallback;
 	engine->col_hand->userData = engine; //Set the collision handler's user data to the context
-	if (argc > 2) {
-		S_Log("Too many arguments, only one expected");
-		return NULL;
-	} else {
-		if (P_mount(argv[1], NULL, 0) == 0) return NULL;
-		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Path mounted");
-		if (read_files(engine, "") != 0) return NULL;
+	/* If assets have been embedded, then mount those files */
+	if (sizeof(embedded_binary) > 0) {
+		unsigned char* d_binary = (unsigned char*)malloc(sizeof(embedded_binary));
+		int len = decrypt(embedded_binary, sizeof(embedded_binary), embedded_key, embedded_iv, d_binary);
+		if (P_mountMemory(d_binary, len, free, "embedded.zip", "embedded", 1) == 0) return NULL;
+		if (read_files(engine, "", "embedded") != 0) return NULL;
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files read");
 	}
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files read");
+	int dig = findn(argc); //Get the max number of digits
+	for (size_t i = 1; i < argc; i++) {
+		char* dir = (char*)calloc(6+dig, 1);
+		sprintf(dir, "input%ld", i);
+		if (P_mount(argv[i], dir, 1) == 0) return NULL;
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Path mounted");
+		if (read_files(engine, "", dir) != 0) return NULL;
+		free(dir);
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files read");
+	}
 	if (engine->objects_num > 0) action_spawn(engine, engine->first_object->name, 0, 0);
 	return engine;
 }
@@ -711,18 +816,23 @@ static cpBool collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
 	return cpTrue;
 }
 
-static int read_files(Engine* engine, const char *path) {
+static int read_files(Engine* engine, const char *path, const char* opt) {
+	char* fullpath = (char*)calloc(strlen(path)+strlen(opt)+1, 1);
+	if (opt == NULL) strcpy(fullpath, path);
+	else sprintf(fullpath, "%s%s", opt, path);
 	PHYSFS_Stat stat;
-	if (P_stat(path, &stat) == 0) return -1;
+	if (P_stat(fullpath, &stat) == 0) return -1;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Path stats acquired");
 	if (stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
 		if (path[0] == '.' || path[1] == '.') return 0;
-		char **rc = P_enumerateFiles(path);
+		char **rc = P_enumerateFiles(fullpath);
+		if (rc == NULL) return 0;
 		for (char** i = rc; *i != NULL; i++) {
-			*i = (char*)realloc(*i, sizeof(path)+sizeof(*i)+2);
-			prepend(*i, P_getDirSeparator());
-			prepend(*i, path);
-			if (read_files(engine, *i) < 0) return -1;
+			char* newpath = (char*)calloc(strlen(path)+strlen(*i)+2, 1);
+			if (newpath == NULL) continue;
+			sprintf(newpath, "%s%s%s", path, P_getDirSeparator(), *i);
+			if (read_files(engine, newpath, opt) < 0) return -1;
+			free(newpath);
 		}
 		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files loaded");
 		P_freeList(rc);
@@ -731,34 +841,41 @@ static int read_files(Engine* engine, const char *path) {
 		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Is a regular file");
 		const char* ext = getextension(path);
 		size_t len = 0;
-		char* data = read_data(path, &len);
+		unsigned char* data = read_data(fullpath, &len);
 		if (data == NULL) return -1;
+		unsigned char* d_data = (unsigned char*)malloc(len);
+		if (strcmp(ext, "tidal") == 0) {
+			len = decrypt(data, len, embedded_key, embedded_iv, d_data);
+		} else memcpy(d_data, data, len);
 		if (strcmp(ext, "bmp") == 0 || strcmp(ext, "jpg") == 0 || strcmp(ext, "png") == 0 || strcmp(ext, "webp") == 0 || strcmp(ext, "svg") == 0) {
-			if (init_texture(engine, data, len, path) < 0) return -1;
-			free(data);
+			if (init_texture(engine, d_data, len, path) < 0) return -1;
 		} else if (strcmp(ext, "json") == 0) {
-			S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Contents of json file:\n%s", data);
-			if (init_object(engine, data, len, path) < 0) return -1;
-			free(data);
+			S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Contents of json file:\n%s", d_data);
+			if (init_object(engine, d_data, len, path) < 0) return -1;
 		} else if (strcmp(ext, "ttf") == 0) {
-			if (init_font(engine, data, len, path) < 0) return -1;
-			free(data);
+			if (init_font(engine, d_data, len, path) < 0) return -1;
 		} else if (strcmp(ext, "wav") == 0 || strcmp(ext, "flac") == 0 || strcmp(ext, "mp3") == 0 || strcmp(ext, "ogg") == 0) {
-			if (init_audio(engine, data, len, path, 0) < 0) return -1;
+			if (init_audio(engine, d_data, len, path, 0) < 0) return -1;
 		} else if (strcmp(ext, "sfx") == 0) {
-			if (init_audio(engine, data, len, path, 1) < 0) return -1;
+			if (init_audio(engine, d_data, len, path, 1) < 0) return -1;
+		} else {
+			S_Log("Unsupported file type");
 		}
 		//Add more filetypes later
+		free(data);
+		free(d_data);
 	}
+	free(fullpath);
 	return 0;
 }
 
-static char* read_data(const char* path, size_t* len) {
+static unsigned char* read_data(const char* path, size_t* len) {
 	PHYSFS_File* file = P_openRead(path);
 	if (file == NULL) return NULL;
 	*len = P_fileLength(file);
 	if (*len == -1) return NULL;
-	char* data = (char*)malloc(*len);
+	unsigned char* data = (unsigned char*)calloc(*len+1, 1);
+	if (data == NULL) return NULL;
 	P_readBytes(file, data, *len);
 	if (P_close(file) == 0) return NULL;
 	return data;
@@ -770,16 +887,18 @@ static const char* getextension(const char* filename) {
 	return dot + 1;
 }
 
-static void prepend(char* s, const char* t) {
+/*static void prepend(char* s, const char* t) {
 	size_t len = strlen(t);
 	memmove(s + len, s, strlen(s) + 1);
 	memcpy(s, t, len);
-}
+}*/
 
-static int init_object(Engine* engine, char* data, size_t len, const char* path) {
-	engine->objects = (Object*)realloc(engine->objects, (engine->objects_num+1)*sizeof(Object));
-	engine->objects[engine->objects_num].data = J_ParseWithLength(data, len);
-	engine->objects[engine->objects_num].name = (char*)malloc(strlen(path+1));
+static int init_object(Engine* engine, unsigned char* data, size_t len, const char* path) {
+	Object* tmp = (Object*)realloc(engine->objects, (engine->objects_num+1)*sizeof(Object));
+	if (tmp == NULL) return -1;
+	engine->objects = tmp;
+	engine->objects[engine->objects_num].data = J_ParseWithLength((char*)data, len);
+	engine->objects[engine->objects_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->objects[engine->objects_num].name, path+1);
 	if (!engine->objects[engine->objects_num].data) {
 		S_Log("cJSON error: %s", J_GetErrorPtr());
@@ -797,10 +916,12 @@ static int init_object(Engine* engine, char* data, size_t len, const char* path)
 	return 0;
 }
 
-static int init_texture(Engine* engine, char* data, size_t len, const char* path) {
-	engine->textures = (Texture*)realloc(engine->textures, (engine->textures_num+1)*sizeof(Texture));
+static int init_texture(Engine* engine, unsigned char* data, size_t len, const char* path) {
+	Texture* tmp = (Texture*)realloc(engine->textures, (engine->textures_num+1)*sizeof(Texture));
+	if (tmp == NULL) return -1;
+	engine->textures = tmp;
 	engine->textures[engine->textures_num].data = I_LoadTexture_RW(engine->renderer, S_RWFromMem(data, len), 1);
-	engine->textures[engine->textures_num].name = (char*)malloc(strlen(path+1));
+	engine->textures[engine->textures_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->textures[engine->textures_num].name, path+1);
 	if (!engine->textures[engine->textures_num].data) return -1;
 	engine->textures_num++;
@@ -808,13 +929,15 @@ static int init_texture(Engine* engine, char* data, size_t len, const char* path
 	return 0;
 }
 
-static int init_font(Engine* engine, char* data, size_t len, const char* path) {
-	engine->fonts = (Font*)realloc(engine->fonts, (engine->fonts_num+1)*sizeof(Font));
+static int init_font(Engine* engine, unsigned char* data, size_t len, const char* path) {
+	Font* tmp = (Font*)realloc(engine->fonts, (engine->fonts_num+1)*sizeof(Font));
+	if (tmp == NULL) return -1;
+	engine->fonts = tmp;
 	engine->fonts[engine->fonts_num].normal = F_CreateFont();
 	engine->fonts[engine->fonts_num].bold = F_CreateFont();
 	F_LoadFontRW(engine->fonts[engine->fonts_num].normal, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_NORMAL);
 	F_LoadFontRW(engine->fonts[engine->fonts_num].bold, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_BOLD);
-	engine->fonts[engine->fonts_num].name = (char*)malloc(strlen(path+1));
+	engine->fonts[engine->fonts_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->fonts[engine->fonts_num].name, path+1);
 	if (!engine->fonts[engine->fonts_num].normal) return -1;
 	engine->fonts_num++;
@@ -822,18 +945,20 @@ static int init_font(Engine* engine, char* data, size_t len, const char* path) {
 	return 0;
 }
 
-static int init_audio(Engine* engine, char* data, size_t len, const char* path, int type) {
-	engine->audio = (Audio*)realloc(engine->audio, (engine->audio_num+1)*sizeof(Audio));
+static int init_audio(Engine* engine, unsigned char* data, size_t len, const char* path, int type) {
+	Audio* tmp = (Audio*)realloc(engine->audio, (engine->audio_num+1)*sizeof(Audio));
+	if (tmp == NULL) return -1;
+	engine->audio = tmp;
 	int err = 0;
 	if (type == 0) {
 		engine->audio[engine->audio_num].data = O_WavCreate();
-		err = O_WavLoadMemEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 0, 1);
+		err = O_WavLoadMemEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 1, 0);
 	} else if (type == 1) {
 		engine->audio[engine->audio_num].data = O_SfxrCreate();
-		err = O_SfxrLoadParamsEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 0, 1);
+		err = O_SfxrLoadParamsEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 1, 0);
 	}
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Soloud load error: %s", O_getErrorString(engine->soloud, err));
-	engine->audio[engine->audio_num].name = (char*)malloc(strlen(path+1));
+	engine->audio[engine->audio_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->audio[engine->audio_num].name, path+1);
 	if (!engine->audio[engine->audio_num].data) return -1;
 	engine->audio_num++;
@@ -896,7 +1021,9 @@ static void events(Engine* engine) {
 }
 
 static int init_ui(Engine* engine, int n) {
-	engine->ui = (Instance**)realloc(engine->ui, (engine->ui_num+1)*sizeof(Instance*));
+	Instance** tmp = (Instance**)realloc(engine->ui, (engine->ui_num+1)*sizeof(Instance*));
+	if (tmp == NULL) return -1;
+	engine->ui = tmp;
 	engine->ui[engine->ui_num] = engine->instances + n;
 	if (engine->ui_num == 0) {
 		engine->ui_dst = engine->instances[n].dst;
@@ -919,7 +1046,9 @@ static int init_ui(Engine* engine, int n) {
 }
 
 static int init_action(Engine* engine, event_t ev, const cJSON* action, char* id) {
-	engine->events[ev] = (Action*)realloc(engine->events[ev], (engine->events_num[ev]+1)*sizeof(Action));
+	Action* tmp = (Action*)realloc(engine->events[ev], (engine->events_num[ev]+1)*sizeof(Action));
+	if (tmp == NULL) return -1;
+	engine->events[ev] = tmp;
 	engine->events[ev][engine->events_num[ev]].data = action;
 	engine->events[ev][engine->events_num[ev]].id = id;
 	engine->events_num[ev]++;
@@ -951,7 +1080,8 @@ static char* gen_uuid() {
 
 /* Action to instantiate an object. Currently quite complex because all the processing
  * of JSON and assigning resources happens in this function. Also has to sort out the
- * layers each time. Will probably eventually be a performance bottleneck.
+ * layers each time. Will probably eventually be a performance bottleneck. Should add
+ * more error messages to inform developer there object is malformed.
  */
 static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	cJSON* json = NULL;
@@ -1206,10 +1336,11 @@ static void draw(Engine* engine) {
 	S_RenderClear(engine->renderer);
 	for (int i = 0; i < engine->instances_num; i++) {
 		Instance* instance = engine->instances + i;
-		S_RenderCopy(engine->renderer, instance->texture, NULL, &(instance->dst));
-		F_Draw(instance->font->normal, engine->renderer, instance->dst.x, instance->dst.y, instance->text);
+		S_RenderCopy(engine->renderer, instance->texture, NULL, &instance->dst);
+		/* causing segfaults */
+		//F_Draw(instance->font->normal, engine->renderer, instance->dst.x, instance->dst.y, instance->text);
 	}
-	S_RenderCopy(engine->renderer, engine->ui_texture, NULL, &(engine->ui_dst));
+	S_RenderCopy(engine->renderer, engine->ui_texture, NULL, &engine->ui_dst);
 	F_Draw(engine->ui_font, engine->renderer, engine->ui_dst.x, engine->ui_dst.y, engine->ui_text);
 	S_RenderPresent(engine->renderer);
 }
@@ -1338,6 +1469,7 @@ void Tidal_cleanup(Engine* engine) {
 	S_UnloadObject(cp_lib); cp_lib = NULL;
 	S_UnloadObject(soloud_lib); soloud_lib = NULL;
 	S_UnloadObject(fc_lib); fc_lib = NULL;
+	S_UnloadObject(evp_lib); evp_lib = NULL;
 	S_Quit();
 #ifdef _WIN32
 	//Add Windows dependent code

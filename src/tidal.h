@@ -11,6 +11,7 @@
 #include <chipmunk/chipmunk.h>
 #include <stdbool.h>
 #include <soloud/soloud_c.h>
+#include <openssl/evp.h>
 
 #ifndef STATIC
 #include <dlfcn.h>
