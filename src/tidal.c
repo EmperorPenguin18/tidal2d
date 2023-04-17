@@ -7,6 +7,11 @@
 #include <physfs.h>
 #include <SDL2/SDL_image.h>
 #include <time.h>
+#include <openssl/evp.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 static int lib_load();
 static unsigned char* read_data(const char*, size_t*);
@@ -227,7 +232,7 @@ typedef int (*pf_o_wavloadmemex)(Wav*, const unsigned char*, unsigned int, int, 
 pf_o_wavloadmemex O_WavLoadMemEx = NULL;
 typedef int (*pf_o_init)(Soloud*);
 pf_o_init O_init = NULL;
-typedef unsigned int (*pf_o_playex)(Soloud*, AudioSource*, float, float, bool, unsigned int);
+typedef unsigned int (*pf_o_playex)(Soloud*, AudioSource*, float, float, int, unsigned int);
 pf_o_playex O_playEx = NULL;
 typedef void (*pf_o_deinit)(Soloud*);
 pf_o_deinit O_deinit = NULL;
@@ -391,7 +396,52 @@ static int lib_load() {
 	E_CIPHER_CTX_free = &EVP_CIPHER_CTX_free;
 #else
 #ifdef _WIN32
-	//Add Windows dependent code
+	sdl_lib = LoadLibrary(TEXT("libSDL2.dll"));
+	if (!sdl_lib) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	S_LoadObject = GetProcAddress(sdl_lib, "SDL_LoadObject");
+	if (!S_LoadObject) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	S_LoadFunction = GetProcAddress(sdl_lib, "SDL_LoadFunction");
+	if (!S_LoadFunction) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	S_Log = GetProcAddress(sdl_lib, "SDL_Log");
+	if (!S_Log) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	S_GetError = GetProcAddress(sdl_lib, "SDL_GetError");
+	if (!S_GetError) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	physfs_lib = LoadLibrary(TEXT("libphysfs.dll"));
+	if (!physfs_lib) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	P_getErrorByCode = GetProcAddress(physfs_lib, "PHYSFS_getErrorByCode");
+	if (!P_getErrorByCode) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	P_getLastErrorCode = GetProcAddress(physfs_lib, "PHYSFS_getLastErrorCode");
+	if (!P_getLastErrorCode) {
+		fprintf(stderr, "INFO: %s\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+	cjson_lib = S_LoadObject("libcjson.dll");
+	img_lib = S_LoadObject("libSDL2_image.dll");
+	cp_lib = S_LoadObject("libchipmunk.dll");
+	soloud_lib = S_LoadObject("libsoloud.dll");
+	fc_lib = S_LoadObject("libSDL2_FontCache.dll");
+	evp_lib = S_LoadObject("libcrypto.dll");
 #else
 	sdl_lib = dlopen("libSDL2.so", RTLD_LAZY);
 	if (!sdl_lib) {
@@ -434,22 +484,18 @@ static int lib_load() {
 		exit(EXIT_FAILURE);
 	}
 	cjson_lib = S_LoadObject("libcjson.so");
-	if (!cjson_lib) return -1;
 	img_lib = S_LoadObject("libSDL2_image.so");
-	if (!img_lib) return -1;
-	/*ttf_lib = S_LoadObject("libSDL2_ttf.so");
-	if (!ttf_lib) return -1;
-	mix_lib = S_LoadObject("libSDL2_mixer.so");
-	if (!mix_lib) return -1;*/
 	cp_lib = S_LoadObject("libchipmunk.so");
-	if (!cp_lib) return -1;
 	soloud_lib = S_LoadObject("libsoloud.so");
-	if (!soloud_lib) return -1;
 	fc_lib = S_LoadObject("libSDL2_FontCache.so");
-	if (!fc_lib) return -1;
 	evp_lib = S_LoadObject("libcrypto.so");
-	if (!evp_lib) return -1;
 #endif
+	if (!cjson_lib) return -1;
+	if (!img_lib) return -1;
+	if (!cp_lib) return -1;
+	if (!soloud_lib) return -1;
+	if (!fc_lib) return -1;
+	if (!evp_lib) return -1;
 	S_DestroyTexture = S_LoadFunction(sdl_lib, "SDL_DestroyTexture");
 	if (!S_DestroyTexture) return -1;
 	S_SetRenderDrawBlendMode = S_LoadFunction(sdl_lib, "SDL_SetRenderDrawBlendMode");
@@ -770,7 +816,7 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	engine->soloud = O_SoloudCreate();
 	if (O_init(engine->soloud) != 0) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SoLoud initialized");
-	if (I_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP) != (IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_WEBP)) return NULL;
+	if (I_Init(IMG_INIT_JPG | IMG_INIT_PNG) != (IMG_INIT_JPG | IMG_INIT_PNG)) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_image initialized");
 	engine->window = S_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
 	if (!engine->window) return NULL;
@@ -847,7 +893,7 @@ static int read_files(Engine* engine, const char *path, const char* opt) {
 		if (strcmp(ext, "tidal") == 0) {
 			len = decrypt(data, len, embedded_key, embedded_iv, d_data);
 		} else memcpy(d_data, data, len);
-		if (strcmp(ext, "bmp") == 0 || strcmp(ext, "jpg") == 0 || strcmp(ext, "png") == 0 || strcmp(ext, "webp") == 0 || strcmp(ext, "svg") == 0) {
+		if (strcmp(ext, "bmp") == 0 || strcmp(ext, "jpg") == 0 || strcmp(ext, "png") == 0 || strcmp(ext, "svg") == 0) {
 			if (init_texture(engine, d_data, len, path) < 0) return -1;
 		} else if (strcmp(ext, "json") == 0) {
 			S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Contents of json file:\n%s", d_data);
@@ -1472,7 +1518,8 @@ void Tidal_cleanup(Engine* engine) {
 	S_UnloadObject(evp_lib); evp_lib = NULL;
 	S_Quit();
 #ifdef _WIN32
-	//Add Windows dependent code
+	FreeLibrary(sdl_lib); sdl_lib = NULL;
+	FreeLibrary(physfs_lib); physfs_lib = NULL;
 #else
 	dlclose(sdl_lib); sdl_lib = NULL;
 	dlclose(physfs_lib); physfs_lib = NULL;
