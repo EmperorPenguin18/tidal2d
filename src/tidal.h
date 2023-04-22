@@ -12,6 +12,9 @@
 #include <stdbool.h>
 #include <soloud/soloud_c.h>
 
+/* The different event types. Used when defining objects and by
+ * the event handler.
+ */
 enum event_t {
 	TIDAL_EVENT_COLLISION,
 	TIDAL_EVENT_QUIT,
@@ -31,31 +34,40 @@ enum event_t {
 };
 typedef enum event_t event_t;
 
+/* Asset type definitions. Should probably clean this up
+ * and unify them with void*
+ */
 struct Texture {
 	char* name;
 	SDL_Texture* data;
 };
 typedef struct Texture Texture;
-
 struct Object {
 	char* name;
 	cJSON* data;
 };
 typedef struct Object Object;
-
 struct Font {
 	char* name;
 	FC_Font* normal;
 	FC_Font* bold;
 };
 typedef struct Font Font;
-
 struct Audio {
 	char* name;
 	AudioSource* data;
 };
 typedef struct Audio Audio;
+struct Action {
+	char* id;
+	const cJSON* data;
+};
+typedef struct Action Action;
 
+/* Instance definition. These are organized into layers
+ * and looped over frequently. Could definitely use some
+ * optimization
+ */
 struct Instance {
 	char* id;
 	SDL_Rect dst;
@@ -68,12 +80,9 @@ struct Instance {
 };
 typedef struct Instance Instance;
 
-struct Action {
-	char* id;
-	const cJSON* data;
-};
-typedef struct Action Action;
-
+/* The context struct. Keeps track of all state related
+ * stuff, and asset arrays.
+ */
 struct Engine {
 	SDL_Window* window;
 	SDL_Renderer* renderer;
@@ -106,6 +115,7 @@ struct Engine {
 };
 typedef struct Engine Engine;
 
+/* The functions that main() uses */
 Engine* Tidal_init(int, char*[]);
 void Tidal_run(Engine*);
 void Tidal_cleanup(Engine*);

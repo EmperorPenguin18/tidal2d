@@ -21,7 +21,6 @@ static int lib_load();
 static unsigned char* read_data(const char*, size_t*);
 static int read_files(Engine*, const char*, const char*);
 static const char* getextension(const char*);
-//static void prepend(char*, const char*);
 
 static int init_object(Engine*, unsigned char*, size_t, const char*);
 static int init_texture(Engine*, unsigned char*, size_t, const char*);
@@ -159,34 +158,6 @@ typedef int (*pf_i_init)(int);
 pf_i_init I_Init = NULL;
 typedef void (*pf_i_quit)();
 pf_i_quit I_Quit = NULL;
-/*void* ttf_lib = NULL;
-typedef int (*pf_t_fontheight)(const TTF_Font*);
-pf_t_fontheight T_FontHeight = NULL;
-typedef SDL_Surface* (*pf_t_renderutf8solidwrapped)(TTF_Font*, const char*, SDL_Color, Uint32);
-pf_t_renderutf8solidwrapped T_RenderUTF8_Solid_Wrapped = NULL;
-typedef TTF_Font* (*pf_t_openfontrw)(SDL_RWops*, int, int);
-pf_t_openfontrw T_OpenFontRW = NULL;
-typedef int (*pf_t_init)();
-pf_t_init T_Init = NULL;
-typedef void (*pf_t_closefont)(TTF_Font*);
-pf_t_closefont T_CloseFont = NULL;
-typedef void (*pf_t_quit)();
-pf_t_quit T_Quit = NULL;
-void* mix_lib = NULL;
-typedef int (*pf_m_playchannel)(int, Mix_Chunk*, int);
-pf_m_playchannel M_PlayChannel = NULL;
-typedef void (*pf_m_closeaudio)();
-pf_m_closeaudio M_CloseAudio = NULL;
-typedef int (*pf_m_openaudio)(int, Uint64, int, int);
-pf_m_openaudio M_OpenAudio = NULL;
-typedef Mix_Chunk* (*pf_m_loadwavrw)(SDL_RWops*, int);
-pf_m_loadwavrw M_LoadWAV_RW = NULL;
-typedef int (*pf_m_init)(int);
-pf_m_init M_Init = NULL;
-typedef void (*pf_m_freechunk)(Mix_Chunk*);
-pf_m_freechunk M_FreeChunk = NULL;
-typedef void (*pf_m_quit)();
-pf_m_quit M_Quit = NULL;*/
 void* cp_lib = NULL;
 typedef cpFloat (*pf_c_momentforbox)(cpFloat, cpFloat, cpFloat);
 pf_c_momentforbox C_MomentForBox = NULL;
@@ -285,6 +256,10 @@ pf_e_decryptfinalex E_DecryptFinal_ex = NULL;
 typedef void (*pf_e_cipherctxfree)(EVP_CIPHER_CTX*);
 pf_e_cipherctxfree E_CIPHER_CTX_free = NULL;
 
+/* This function is used instead of -l flags at compile time.
+ * Should be moved to another source file, and the Windows
+ * part needs work.
+ */
 static int lib_load() {
 #ifdef STATIC
 	S_LoadObject = &SDL_LoadObject;
@@ -345,19 +320,6 @@ static int lib_load() {
 	I_Load_RW = &IMG_Load_RW;
 	I_Init = &IMG_Init;
 	I_Quit = &IMG_Quit;
-	/*T_FontHeight = &TTF_FontHeight;
-	T_RenderUTF8_Solid_Wrapped = &TTF_RenderUTF8_Solid_Wrapped;
-	T_OpenFontRW = &TTF_OpenFontRW;
-	T_Init = &TTF_Init;
-	T_CloseFont = &TTF_CloseFont;
-	T_Quit = &TTF_Quit;
-	M_PlayChannel = &Mix_PlayChannel;
-	M_CloseAudio = &Mix_CloseAudio;
-	M_OpenAudio = &Mix_OpenAudio;
-	M_LoadWAV_RW = &Mix_LoadWAV_RW;
-	M_Init = &Mix_Init;
-	M_FreeChunk = &Mix_FreeChunk;
-	M_Quit = &Mix_Quit;*/
 	C_MomentForBox = &cpMomentForBox;
 	C_BodyNew = &cpBodyNew;
 	C_SpaceAddBody = &cpSpaceAddBody;
@@ -610,32 +572,6 @@ static int lib_load() {
 	if (!I_Init) return -1;
 	I_Quit = S_LoadFunction(img_lib, "IMG_Quit");
 	if (!I_Quit) return -1;
-	/*T_FontHeight = S_LoadFunction(ttf_lib, "TTF_FontHeight");
-	if (!T_FontHeight) return -1;
-	T_RenderUTF8_Solid_Wrapped = S_LoadFunction(ttf_lib, "TTF_RenderUTF8_Solid_Wrapped");
-	if (!T_RenderUTF8_Solid_Wrapped) return -1;
-	T_OpenFontRW = S_LoadFunction(ttf_lib, "TTF_OpenFontRW");
-	if (!T_OpenFontRW) return -1;
-	T_Init = S_LoadFunction(ttf_lib, "TTF_Init");
-	if (!T_Init) return -1;
-	T_CloseFont = S_LoadFunction(ttf_lib, "TTF_CloseFont");
-	if (!T_CloseFont) return -1;
-	T_Quit = S_LoadFunction(ttf_lib, "TTF_Quit");
-	if (!T_Quit) return -1;
-	M_PlayChannel = S_LoadFunction(mix_lib, "Mix_PlayChannel");
-	if (!M_PlayChannel) return -1;
-	M_CloseAudio = S_LoadFunction(mix_lib, "Mix_CloseAudio");
-	if (!M_CloseAudio) return -1;
-	M_OpenAudio = S_LoadFunction(mix_lib, "Mix_OpenAudio");
-	if (!M_OpenAudio) return -1;
-	M_LoadWAV_RW = S_LoadFunction(mix_lib, "Mix_LoadWAV_RW");
-	if (!M_LoadWAV_RW) return -1;
-	M_Init = S_LoadFunction(mix_lib, "Mix_Init");
-	if (!M_Init) return -1;
-	M_FreeChunk = S_LoadFunction(mix_lib, "Mix_FreeChunk");
-	if (!M_FreeChunk) return -1;
-	M_Quit = S_LoadFunction(mix_lib, "Mix_Quit");
-	if (!M_Quit) return -1;*/
 	C_MomentForBox = S_LoadFunction(cp_lib, "cpMomentForBox");
 	if (!C_MomentForBox) return -1;
 	C_BodyNew = S_LoadFunction(cp_lib, "cpBodyNew");
@@ -732,6 +668,7 @@ static int lib_load() {
 	return 0;
 }
 
+/* Get the number of digits in an int */
 static int findn(int num) {
 	if (num == 0) return 1;
 	int n = 0;
@@ -748,6 +685,7 @@ static void handleErrors(void)
     abort();
 }
 
+/* The symmetric decrypt example from openssl */
 static int decrypt(const unsigned char *ciphertext, int ciphertext_len, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext) {
     EVP_CIPHER_CTX *ctx;
     int len;
@@ -789,6 +727,7 @@ static int decrypt(const unsigned char *ciphertext, int ciphertext_len, const un
     return plaintext_len;
 }
 
+/* Initializes all libraries, and reads in assets */
 Engine* Tidal_init(int argc, char *argv[]) {
 	Engine* engine = (Engine*)malloc(sizeof(Engine));
 	if (engine == NULL) return NULL;
@@ -880,6 +819,10 @@ static cpBool collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
 	return cpTrue;
 }
 
+/* Recursive function to traverse the PHYSFS virtual file
+ * system and read in the data for all asset files based
+ * on file extension.
+ */
 static int read_files(Engine* engine, const char *path, const char* opt) {
 	char* fullpath = (char*)calloc(strlen(path)+strlen(opt)+1, 1);
 	if (opt == NULL) strcpy(fullpath, path);
@@ -908,10 +851,15 @@ static int read_files(Engine* engine, const char *path, const char* opt) {
 		size_t len = 0;
 		unsigned char* data = read_data(fullpath, &len);
 		if (data == NULL) return -1;
+
+		/* This decryption part probably won't work right because
+		 * file names.
+		*/
 		unsigned char* d_data = (unsigned char*)malloc(len);
 		if (strcmp(ext, "tidal") == 0) {
 			len = decrypt(data, len, embedded_key, embedded_iv, d_data);
 		} else memcpy(d_data, data, len);
+
 		if (strcmp(ext, "bmp") == 0 || strcmp(ext, "jpg") == 0 || strcmp(ext, "png") == 0 || strcmp(ext, "svg") == 0) {
 			if (init_texture(engine, d_data, len, path) < 0) return -1;
 		} else if (strcmp(ext, "json") == 0) {
@@ -934,6 +882,7 @@ static int read_files(Engine* engine, const char *path, const char* opt) {
 	return 0;
 }
 
+/* Basic reading data from file PHYSFS virtual file system */
 static unsigned char* read_data(const char* path, size_t* len) {
 	PHYSFS_File* file = P_openRead(path);
 	if (file == NULL) return NULL;
@@ -952,12 +901,7 @@ static const char* getextension(const char* filename) {
 	return dot + 1;
 }
 
-/*static void prepend(char* s, const char* t) {
-	size_t len = strlen(t);
-	memmove(s + len, s, strlen(s) + 1);
-	memcpy(s, t, len);
-}*/
-
+/* Read in JSON data */
 static int init_object(Engine* engine, unsigned char* data, size_t len, const char* path) {
 	Object* tmp = (Object*)realloc(engine->objects, (engine->objects_num+1)*sizeof(Object));
 	if (tmp == NULL) return -1;
@@ -981,6 +925,7 @@ static int init_object(Engine* engine, unsigned char* data, size_t len, const ch
 	return 0;
 }
 
+/* Read in image data */
 static int init_texture(Engine* engine, unsigned char* data, size_t len, const char* path) {
 	Texture* tmp = (Texture*)realloc(engine->textures, (engine->textures_num+1)*sizeof(Texture));
 	if (tmp == NULL) return -1;
@@ -997,6 +942,7 @@ static int init_texture(Engine* engine, unsigned char* data, size_t len, const c
 	return 0;
 }
 
+/* Read in font data */
 static int init_font(Engine* engine, unsigned char* data, size_t len, const char* path) {
 	Font* tmp = (Font*)realloc(engine->fonts, (engine->fonts_num+1)*sizeof(Font));
 	if (tmp == NULL) return -1;
@@ -1014,6 +960,9 @@ static int init_font(Engine* engine, unsigned char* data, size_t len, const char
 	return 0;
 }
 
+/* Read in audio data. Based on "type" input, different
+ * file types can be read from.
+ */
 static int init_audio(Engine* engine, unsigned char* data, size_t len, const char* path, int type) {
 	Audio* tmp = (Audio*)realloc(engine->audio, (engine->audio_num+1)*sizeof(Audio));
 	if (tmp == NULL) return -1;
@@ -1035,6 +984,9 @@ static int init_audio(Engine* engine, unsigned char* data, size_t len, const cha
 	return 0;
 }
 
+/* The main game loop. Avoid including debug code in this function
+ * or functions called by it, for performance reasons.
+ */
 void Tidal_run(Engine* engine) {
 	while (engine->running) {
 		Uint64 start = S_GetPerformanceCounter();
@@ -1047,6 +999,7 @@ void Tidal_run(Engine* engine) {
 	}
 }
 
+/* Check for events from the player */
 static void events(Engine* engine) {
 	SDL_Event event;
 	S_PollEvent(&event);
@@ -1089,6 +1042,7 @@ static void events(Engine* engine) {
 	}
 }
 
+/* Part of WIP ui system */
 static int init_ui(Engine* engine, int n) {
 	Instance** tmp = (Instance**)realloc(engine->ui, (engine->ui_num+1)*sizeof(Instance*));
 	if (tmp == NULL) return -1;
@@ -1124,6 +1078,9 @@ static int init_action(Engine* engine, event_t ev, const cJSON* action, char* id
 	return 0;
 }
 
+/* UUIDs are used to identify an instance, because two instances
+ * could be based on the same object.
+ */
 static char* gen_uuid() {
 	char v[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 	//3fb17ebc-bc38-4939-bc8b-74f2443281d4
@@ -1295,6 +1252,7 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 	return 0;
 }
 
+/* Free resources used by instance. See action documentation. */
 static int action_destroy(Engine* engine, char* id) {
 	event_handler(engine, TIDAL_EVENT_DESTRUCTION, id);
 
@@ -1318,6 +1276,7 @@ static int action_destroy(Engine* engine, char* id) {
 	return 0;
 }
 
+/* Do a Chipmunk "teleport". See action documentation */
 static int action_move(Engine* engine, char* id, int x, int y, bool relative) {
 	cpBody* body = NULL;
 	for (size_t i = 0; i < engine->instances_num; i++) {
@@ -1336,6 +1295,7 @@ static int action_move(Engine* engine, char* id, int x, int y, bool relative) {
 	return 0;
 }
 
+/* Change a physics body velocity. See action documentation. */
 static int action_speed(Engine* engine, char* id, int h, int v) {
 	for (size_t i = 0; i < engine->instances_num; i++) {
 		if (strcmp(engine->instances[i].id, id) == 0) {
@@ -1346,11 +1306,13 @@ static int action_speed(Engine* engine, char* id, int h, int v) {
 	return 0;
 }
 
+/* Set the space's gravity. See action documentation. */
 static int action_gravity(Engine* engine, int h, int v) {
 	C_SpaceSetGravity(engine->space, cpv(h, v));
 	return 0;
 }
 
+/* Play audio once. See action documentation. */
 static int action_sound(Engine* engine, char* file) {
 	for (size_t i = 0; i < engine->audio_num; i++) {
 		if (strcmp(engine->audio[i].name, file) == 0) {
@@ -1361,6 +1323,7 @@ static int action_sound(Engine* engine, char* file) {
 	return 0;
 }
 
+/* Play audio on loop. See action documentation. */
 static int action_music(Engine* engine, char* file) {
 	for (size_t i = 0; i < engine->audio_num; i++) {
 		if (strcmp(engine->audio[i].name, file) == 0) {
@@ -1372,16 +1335,19 @@ static int action_music(Engine* engine, char* file) {
 	return 0;
 }
 
+/* End the game loop. See action documentation. */
 static int action_close(Engine* engine) {
 	engine->running = false;
 	return 0;
 }
 
+/* Part of the WIP ui system. */
 static int action_checkui(Engine* engine) {
 	event_handler(engine, TIDAL_EVENT_CHECKUI, NULL);
 	return 0;
 }
 
+/* Update instance position based on physics. Could probably be combined with draw(). */
 static void update(Engine* engine) {
 	for (int i = 0; i < engine->instances_num; i++) {
 		if (engine->instances[i].body != NULL) {
@@ -1399,6 +1365,7 @@ static void update(Engine* engine) {
 	C_SpaceStep(engine->space, 1.0/60.0);
 }
 
+/* Loop over every texture, including text, and render them with SDL. */
 static void draw(Engine* engine) {
 	S_SetRenderDrawBlendMode(engine->renderer, SDL_BLENDMODE_NONE);
 	S_SetRenderDrawColor(engine->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
@@ -1480,6 +1447,9 @@ static void event_handler(Engine* engine, event_t ev, char* id) {
 	}
 }
 
+/* Free resources used by the engine. Could be cleaned up with
+ * generic type cleaners.
+ */
 void Tidal_cleanup(Engine* engine) {
 	P_deinit();
 	for (int i = 0; i < engine->textures_num; i++) {
@@ -1533,8 +1503,6 @@ void Tidal_cleanup(Engine* engine) {
 #else
 	S_UnloadObject(cjson_lib); cjson_lib = NULL;
 	S_UnloadObject(img_lib); img_lib = NULL;
-	//S_UnloadObject(ttf_lib); ttf_lib = NULL;
-	//S_UnloadObject(mix_lib); mix_lib = NULL;
 	S_UnloadObject(cp_lib); cp_lib = NULL;
 	S_UnloadObject(soloud_lib); soloud_lib = NULL;
 	S_UnloadObject(fc_lib); fc_lib = NULL;

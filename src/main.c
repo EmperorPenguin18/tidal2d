@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
+/* Windows needs this during linking */
 #ifdef _WIN32
 #include <windows.h>
 int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char*, int nShowCmd) {
