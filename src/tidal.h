@@ -12,10 +12,6 @@
 #include <stdbool.h>
 #include <soloud/soloud_c.h>
 
-#ifndef STATIC
-#include <dlfcn.h>
-#endif
-
 enum event_t {
 	TIDAL_EVENT_COLLISION,
 	TIDAL_EVENT_QUIT,

@@ -15,3 +15,10 @@ int main(int argc, char *argv[]) {
 	engine = NULL;
 	return 0;
 }
+
+#ifdef _WIN32
+#include <windows.h>
+int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char*, int nShowCmd) {
+	return main(__argc, __argv);
+}
+#endif

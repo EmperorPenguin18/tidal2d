@@ -9,8 +9,12 @@
 #include <time.h>
 #include <openssl/evp.h>
 
+#ifndef STATIC
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 #endif
 
 static int lib_load();
@@ -149,6 +153,8 @@ pf_j_isbool J_IsBool = NULL;
 void* img_lib = NULL;
 typedef SDL_Texture* (*pf_i_loadtexturerw)(SDL_Renderer*, SDL_RWops*, int);
 pf_i_loadtexturerw I_LoadTexture_RW = NULL;
+typedef SDL_Surface* (*pf_i_loadrw)(SDL_RWops*, int);
+pf_i_loadrw I_Load_RW = NULL;
 typedef int (*pf_i_init)(int);
 pf_i_init I_Init = NULL;
 typedef void (*pf_i_quit)();
@@ -232,6 +238,8 @@ typedef int (*pf_o_wavloadmemex)(Wav*, const unsigned char*, unsigned int, int, 
 pf_o_wavloadmemex O_WavLoadMemEx = NULL;
 typedef int (*pf_o_init)(Soloud*);
 pf_o_init O_init = NULL;
+typedef int (*pf_o_initex)(Soloud*, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
+pf_o_initex O_initEx = NULL;
 typedef unsigned int (*pf_o_playex)(Soloud*, AudioSource*, float, float, int, unsigned int);
 pf_o_playex O_playEx = NULL;
 typedef void (*pf_o_deinit)(Soloud*);
@@ -334,6 +342,7 @@ static int lib_load() {
 	J_IsArray = &cJSON_IsArray;
 	J_IsBool = &cJSON_IsBool;
 	I_LoadTexture_RW = &IMG_LoadTexture_RW;
+	I_Load_RW = &IMG_Load_RW;
 	I_Init = &IMG_Init;
 	I_Quit = &IMG_Quit;
 	/*T_FontHeight = &TTF_FontHeight;
@@ -373,6 +382,7 @@ static int lib_load() {
 	O_WavCreate = &Wav_create;
 	O_WavLoadMemEx = &Wav_loadMemEx;
 	O_init = &Soloud_init;
+	O_initEx = &Soloud_initEx;
 	O_playEx = &Soloud_playEx;
 	O_deinit = &Soloud_deinit;
 	O_WavDestroy = &Wav_destroy;
@@ -396,51 +406,51 @@ static int lib_load() {
 	E_CIPHER_CTX_free = &EVP_CIPHER_CTX_free;
 #else
 #ifdef _WIN32
-	sdl_lib = LoadLibrary(TEXT("libSDL2.dll"));
+	sdl_lib = LoadLibrary(TEXT("SDL2.dll"));
 	if (!sdl_lib) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: Failed to load SDL2 object\n");
 		exit(EXIT_FAILURE);
 	}
 	S_LoadObject = GetProcAddress(sdl_lib, "SDL_LoadObject");
 	if (!S_LoadObject) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: Failed to bind SDL_LoadObject\n");
 		exit(EXIT_FAILURE);
 	}
 	S_LoadFunction = GetProcAddress(sdl_lib, "SDL_LoadFunction");
 	if (!S_LoadFunction) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: Failed to bind SDL_LoadFunction\n");
 		exit(EXIT_FAILURE);
 	}
 	S_Log = GetProcAddress(sdl_lib, "SDL_Log");
 	if (!S_Log) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: Failed to bind SDL_Log\n");
 		exit(EXIT_FAILURE);
 	}
 	S_GetError = GetProcAddress(sdl_lib, "SDL_GetError");
 	if (!S_GetError) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: Failed to bind SDL_GetError\n");
 		exit(EXIT_FAILURE);
 	}
-	physfs_lib = LoadLibrary(TEXT("libphysfs.dll"));
+	physfs_lib = LoadLibrary(TEXT("libphysfs.so"));
 	if (!physfs_lib) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: code %d\n", GetLastError());
 		exit(EXIT_FAILURE);
 	}
 	P_getErrorByCode = GetProcAddress(physfs_lib, "PHYSFS_getErrorByCode");
 	if (!P_getErrorByCode) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: Failed to bind PHYSFS_getErrorByCode\n");
 		exit(EXIT_FAILURE);
 	}
 	P_getLastErrorCode = GetProcAddress(physfs_lib, "PHYSFS_getLastErrorCode");
 	if (!P_getLastErrorCode) {
-		fprintf(stderr, "INFO: %s\n", GetLastError());
+		fprintf(stderr, "INFO: Failed to bind PHYSFS_getLastErrorCode\n");
 		exit(EXIT_FAILURE);
 	}
-	cjson_lib = S_LoadObject("libcjson.dll");
-	img_lib = S_LoadObject("libSDL2_image.dll");
-	cp_lib = S_LoadObject("libchipmunk.dll");
-	soloud_lib = S_LoadObject("libsoloud.dll");
-	fc_lib = S_LoadObject("libSDL2_FontCache.dll");
+	cjson_lib = S_LoadObject("libcjson.so");
+	img_lib = S_LoadObject("libSDL2_image.so");
+	cp_lib = S_LoadObject("libchipmunk.so");
+	soloud_lib = S_LoadObject("soloud.dll");
+	fc_lib = S_LoadObject("libFontCache.dll");
 	evp_lib = S_LoadObject("libcrypto.dll");
 #else
 	sdl_lib = dlopen("libSDL2.so", RTLD_LAZY);
@@ -594,6 +604,8 @@ static int lib_load() {
 	if (!J_IsBool) return -1;
 	I_LoadTexture_RW = S_LoadFunction(img_lib, "IMG_LoadTexture_RW");
 	if (!I_LoadTexture_RW) return -1;
+	I_Load_RW = S_LoadFunction(img_lib, "IMG_Load_RW");
+	if (!I_Load_RW) return -1;
 	I_Init = S_LoadFunction(img_lib, "IMG_Init");
 	if (!I_Init) return -1;
 	I_Quit = S_LoadFunction(img_lib, "IMG_Quit");
@@ -672,6 +684,8 @@ static int lib_load() {
 	if (!O_WavLoadMemEx) return -1;
 	O_init = S_LoadFunction(soloud_lib, "Soloud_init");
 	if (!O_init) return -1;
+	O_initEx = S_LoadFunction(soloud_lib, "Soloud_initEx");
+	if (!O_initEx) return -1;
 	O_playEx = S_LoadFunction(soloud_lib, "Soloud_playEx");
 	if (!O_playEx) return -1;
 	O_deinit = S_LoadFunction(soloud_lib, "Soloud_deinit");
@@ -814,7 +828,11 @@ Engine* Tidal_init(int argc, char *argv[]) {
 #endif
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL initialized");
 	engine->soloud = O_SoloudCreate();
-	if (O_init(engine->soloud) != 0) return NULL;
+	int err = O_initEx(engine->soloud, 0, SOLOUD_SDL2, SOLOUD_AUTO, SOLOUD_AUTO, SOLOUD_AUTO);
+	if (err != 0) {
+		S_Log("Soloud error: %s", O_getErrorString(engine->soloud, err));
+	       	return NULL;
+	}
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SoLoud initialized");
 	if (I_Init(IMG_INIT_JPG | IMG_INIT_PNG) != (IMG_INIT_JPG | IMG_INIT_PNG)) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL_image initialized");
@@ -870,13 +888,14 @@ static int read_files(Engine* engine, const char *path, const char* opt) {
 	if (P_stat(fullpath, &stat) == 0) return -1;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Path stats acquired");
 	if (stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Dir found");
 		if (path[0] == '.' || path[1] == '.') return 0;
 		char **rc = P_enumerateFiles(fullpath);
 		if (rc == NULL) return 0;
 		for (char** i = rc; *i != NULL; i++) {
 			char* newpath = (char*)calloc(strlen(path)+strlen(*i)+2, 1);
 			if (newpath == NULL) continue;
-			sprintf(newpath, "%s%s%s", path, P_getDirSeparator(), *i);
+			sprintf(newpath, "%s%s%s", path, "/", *i);
 			if (read_files(engine, newpath, opt) < 0) return -1;
 			free(newpath);
 		}
@@ -884,7 +903,7 @@ static int read_files(Engine* engine, const char *path, const char* opt) {
 		P_freeList(rc);
 		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "List freed");
 	} else if (stat.filetype == PHYSFS_FILETYPE_REGULAR) {
-		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Is a regular file");
+		S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "File found");
 		const char* ext = getextension(path);
 		size_t len = 0;
 		unsigned char* data = read_data(fullpath, &len);
@@ -966,7 +985,10 @@ static int init_texture(Engine* engine, unsigned char* data, size_t len, const c
 	Texture* tmp = (Texture*)realloc(engine->textures, (engine->textures_num+1)*sizeof(Texture));
 	if (tmp == NULL) return -1;
 	engine->textures = tmp;
-	engine->textures[engine->textures_num].data = I_LoadTexture_RW(engine->renderer, S_RWFromMem(data, len), 1);
+	SDL_Surface* surface = I_Load_RW(S_RWFromMem(data, len), 1);
+	engine->textures[engine->textures_num].data = S_CreateTextureFromSurface(engine->renderer, surface);
+	S_FreeSurface(surface);
+	printf("%s\n", S_GetError());
 	engine->textures[engine->textures_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->textures[engine->textures_num].name, path+1);
 	if (!engine->textures[engine->textures_num].data) return -1;
@@ -981,8 +1003,9 @@ static int init_font(Engine* engine, unsigned char* data, size_t len, const char
 	engine->fonts = tmp;
 	engine->fonts[engine->fonts_num].normal = F_CreateFont();
 	engine->fonts[engine->fonts_num].bold = F_CreateFont();
-	F_LoadFontRW(engine->fonts[engine->fonts_num].normal, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_NORMAL);
-	F_LoadFontRW(engine->fonts[engine->fonts_num].bold, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_BOLD);
+	// causing segfaults
+	/*F_LoadFontRW(engine->fonts[engine->fonts_num].normal, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_NORMAL);
+	/F_LoadFontRW(engine->fonts[engine->fonts_num].bold, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_BOLD);*/
 	engine->fonts[engine->fonts_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->fonts[engine->fonts_num].name, path+1);
 	if (!engine->fonts[engine->fonts_num].normal) return -1;
