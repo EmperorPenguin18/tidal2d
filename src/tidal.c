@@ -34,7 +34,7 @@ static void event_handler(Engine*, event_t, char*);
 
 static int init_ui(Engine*, int);
 static char* gen_uuid();
-static cpBool collisionCallback(cpArbiter*, cpSpace*, void*);
+static unsigned char collisionCallback(cpArbiter*, cpSpace*, void*);
 static int action_spawn(Engine*, const char*, int, int);
 static int action_checkui(Engine*);
 
@@ -149,6 +149,8 @@ typedef cJSON_bool (*pf_j_isarray)(const cJSON*);
 pf_j_isarray J_IsArray = NULL;
 typedef cJSON_bool (*pf_j_isbool)(const cJSON*);
 pf_j_isbool J_IsBool = NULL;
+typedef char* (*pf_j_print)(cJSON*);
+pf_j_print J_Print = NULL;
 void* img_lib = NULL;
 typedef SDL_Texture* (*pf_i_loadtexturerw)(SDL_Renderer*, SDL_RWops*, int);
 pf_i_loadtexturerw I_LoadTexture_RW = NULL;
@@ -163,6 +165,8 @@ typedef cpFloat (*pf_c_momentforbox)(cpFloat, cpFloat, cpFloat);
 pf_c_momentforbox C_MomentForBox = NULL;
 typedef cpBody* (*pf_c_bodynew)(cpFloat, cpFloat);
 pf_c_bodynew C_BodyNew = NULL;
+typedef cpBody* (*pf_c_bodynewstatic)();
+pf_c_bodynewstatic C_BodyNewStatic = NULL;
 typedef cpBody* (*pf_c_spaceaddbody)(cpSpace*, cpBody*);
 pf_c_spaceaddbody C_SpaceAddBody = NULL;
 typedef void (*pf_c_bodysetposition)(cpBody*, cpVect);
@@ -191,15 +195,36 @@ typedef void (*pf_c_spacefree)(cpSpace*);
 pf_c_spacefree C_SpaceFree = NULL;
 typedef cpCollisionHandler* (*pf_c_spaceadddefaultcollisionhandler)(cpSpace*);
 pf_c_spaceadddefaultcollisionhandler C_SpaceAddDefaultCollisionHandler = NULL;
+typedef cpCollisionHandler* (*pf_c_spaceaddcollisionhandler)(cpSpace*, cpCollisionType, cpCollisionType);
+pf_c_spaceaddcollisionhandler C_SpaceAddCollisionHandler = NULL;
 typedef void (*pf_c_arbitergetbodies)(const cpArbiter*, cpBody**, cpBody**);
 pf_c_arbitergetbodies C_ArbiterGetBodies = NULL;
 #define C_ARBITER_GET_BODIES(arb, a, b) cpBody *a, *b; C_ArbiterGetBodies(arb, &a, &b);
+typedef void (*pf_c_arbitergetshapes)(const cpArbiter*, cpShape**, cpShape**);
+pf_c_arbitergetshapes C_ArbiterGetShapes = NULL;
+#define C_ARBITER_GET_SHAPES(arb, a, b) cpShape *a, *b; C_ArbiterGetShapes(arb, &a, &b);
 typedef cpDataPointer (*pf_c_bodygetuserdata)(const cpBody*);
 pf_c_bodygetuserdata C_BodyGetUserData = NULL;
+typedef cpDataPointer (*pf_c_shapegetuserdata)(const cpShape*);
+pf_c_shapegetuserdata C_ShapeGetUserData = NULL;
 typedef void (*pf_c_bodysetuserdata)(cpBody*, const cpDataPointer);
 pf_c_bodysetuserdata C_BodySetUserData = NULL;
+typedef void (*pf_c_shapesetuserdata)(cpShape*, const cpDataPointer);
+pf_c_shapesetuserdata C_ShapeSetUserData = NULL;
 typedef void (*pf_c_bodysetvelocity)(cpBody*, const cpVect);
 pf_c_bodysetvelocity C_BodySetVelocity = NULL;
+typedef cpBody* (*pf_c_spacegetstaticbody)(const cpSpace*);
+pf_c_spacegetstaticbody C_SpaceGetStaticBody = NULL;
+typedef void (*pf_c_shapesetcollisiontype)(cpShape*, cpCollisionType);
+pf_c_shapesetcollisiontype C_ShapeSetCollisionType = NULL;
+typedef cpBool (*pf_c_spaceaddpoststepcallback)(cpSpace*, cpPostStepFunc, void*, void*);
+pf_c_spaceaddpoststepcallback C_SpaceAddPostStepCallback = NULL;
+typedef void (*pf_c_spaceremoveshape)(cpSpace*, cpShape*);
+pf_c_spaceremoveshape C_SpaceRemoveShape = NULL;
+typedef void (*pf_c_spaceremovebody)(cpSpace*, cpBody*);
+pf_c_spaceremovebody C_SpaceRemoveBody = NULL;
+typedef void (*pf_c_spacereindexshape)(cpSpace*, cpShape*);
+pf_c_spacereindexshape C_SpaceReindexShape = NULL;
 void* soloud_lib = NULL;
 typedef Soloud* (*pf_o_soloudcreate)();
 pf_o_soloudcreate O_SoloudCreate = NULL;
@@ -316,12 +341,14 @@ static int lib_load() {
 	J_IsObject = &cJSON_IsObject;
 	J_IsArray = &cJSON_IsArray;
 	J_IsBool = &cJSON_IsBool;
+	J_Print = &cJSON_Print;
 	I_LoadTexture_RW = &IMG_LoadTexture_RW;
 	I_Load_RW = &IMG_Load_RW;
 	I_Init = &IMG_Init;
 	I_Quit = &IMG_Quit;
 	C_MomentForBox = &cpMomentForBox;
 	C_BodyNew = &cpBodyNew;
+	C_BodyNewStatic = &cpBodyNewStatic;
 	C_SpaceAddBody = &cpSpaceAddBody;
 	C_BodySetPosition = &cpBodySetPosition;
 	C_BoxShapeNew = &cpBoxShapeNew;
@@ -336,10 +363,20 @@ static int lib_load() {
 	C_BodyFree = &cpBodyFree;
 	C_SpaceFree = &cpSpaceFree;
 	C_SpaceAddDefaultCollisionHandler = &cpSpaceAddDefaultCollisionHandler;
+	C_SpaceAddCollisionHandler = &cpSpaceAddCollisionHandler;
 	C_ArbiterGetBodies = &cpArbiterGetBodies;
+	C_ArbiterGetShapes = &cpArbiterGetShapes;
 	C_BodyGetUserData = &cpBodyGetUserData;
+	C_ShapeGetUserData = &cpShapeGetUserData;
 	C_BodySetUserData = &cpBodySetUserData;
+	C_ShapeSetUserData = &cpShapeSetUserData;
 	C_BodySetVelocity = &cpBodySetVelocity;
+	C_SpaceGetStaticBody = &cpSpaceGetStaticBody;
+	C_ShapeSetCollisionType = &cpShapeSetCollisionType;
+	C_SpaceAddPostStepCallback = &cpSpaceAddPostStepCallback;
+	C_SpaceRemoveShape = &cpSpaceRemoveShape;
+	C_SpaceRemoveBody = &cpSpaceRemoveBody;
+	C_SpaceReindexShape = &cpSpaceReindexShape;
 	O_SoloudCreate = &Soloud_create;
 	O_WavCreate = &Wav_create;
 	O_WavLoadMemEx = &Wav_loadMemEx;
@@ -564,6 +601,8 @@ static int lib_load() {
 	if (!J_IsArray) return -1;
 	J_IsBool = S_LoadFunction(cjson_lib, "cJSON_IsBool");
 	if (!J_IsBool) return -1;
+	J_Print = S_LoadFunction(cjson_lib, "cJSON_Print");
+	if (!J_Print) return -1;
 	I_LoadTexture_RW = S_LoadFunction(img_lib, "IMG_LoadTexture_RW");
 	if (!I_LoadTexture_RW) return -1;
 	I_Load_RW = S_LoadFunction(img_lib, "IMG_Load_RW");
@@ -576,6 +615,8 @@ static int lib_load() {
 	if (!C_MomentForBox) return -1;
 	C_BodyNew = S_LoadFunction(cp_lib, "cpBodyNew");
 	if (!C_BodyNew) return -1;
+	C_BodyNewStatic = S_LoadFunction(cp_lib, "cpBodyNewStatic");
+	if (!C_BodyNewStatic) return -1;
 	C_SpaceAddBody = S_LoadFunction(cp_lib, "cpSpaceAddBody");
 	if (!C_SpaceAddBody) return -1;
 	C_BodySetPosition = S_LoadFunction(cp_lib, "cpBodySetPosition");
@@ -604,14 +645,34 @@ static int lib_load() {
 	if (!C_SpaceFree) return -1;
 	C_SpaceAddDefaultCollisionHandler = S_LoadFunction(cp_lib, "cpSpaceAddDefaultCollisionHandler");
 	if (!C_SpaceAddDefaultCollisionHandler) return -1;
+	C_SpaceAddCollisionHandler = S_LoadFunction(cp_lib, "cpSpaceAddCollisionHandler");
+	if (!C_SpaceAddCollisionHandler) return -1;
 	C_ArbiterGetBodies = S_LoadFunction(cp_lib, "cpArbiterGetBodies");
 	if (!C_ArbiterGetBodies) return -1;
+	C_ArbiterGetShapes = S_LoadFunction(cp_lib, "cpArbiterGetShapes");
+	if (!C_ArbiterGetShapes) return -1;
 	C_BodyGetUserData = S_LoadFunction(cp_lib, "cpBodyGetUserData");
 	if (!C_BodyGetUserData) return -1;
+	C_ShapeGetUserData = S_LoadFunction(cp_lib, "cpShapeGetUserData");
+	if (!C_ShapeGetUserData) return -1;
 	C_BodySetUserData = S_LoadFunction(cp_lib, "cpBodySetUserData");
 	if (!C_BodySetUserData) return -1;
+	C_ShapeSetUserData = S_LoadFunction(cp_lib, "cpShapeSetUserData");
+	if (!C_ShapeSetUserData) return -1;
 	C_BodySetVelocity = S_LoadFunction(cp_lib, "cpBodySetVelocity");
 	if (!C_BodySetVelocity) return -1;
+	C_SpaceGetStaticBody = S_LoadFunction(cp_lib, "cpSpaceGetStaticBody");
+	if (!C_SpaceGetStaticBody) return -1;
+	C_ShapeSetCollisionType = S_LoadFunction(cp_lib, "cpShapeSetCollisionType");
+	if (!C_ShapeSetCollisionType) return -1;
+	C_SpaceAddPostStepCallback = S_LoadFunction(cp_lib, "cpSpaceAddPostStepCallback");
+	if (!C_SpaceAddPostStepCallback) return -1;
+	C_SpaceRemoveShape = S_LoadFunction(cp_lib, "cpSpaceRemoveShape");
+	if (!C_SpaceRemoveShape) return -1;
+	C_SpaceRemoveBody = S_LoadFunction(cp_lib, "cpSpaceRemoveBody");
+	if (!C_SpaceRemoveBody) return -1;
+	C_SpaceReindexShape = S_LoadFunction(cp_lib, "cpSpaceReindexShape");
+	if (!C_SpaceReindexShape) return -1;
 	O_SoloudCreate = S_LoadFunction(soloud_lib, "Soloud_create");
 	if (!O_SoloudCreate) return -1;
 	O_WavCreate = S_LoadFunction(soloud_lib, "Wav_create");
@@ -784,8 +845,8 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	if (P_init(argv[0]) == 0) return NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "PHYSFS initialized");
 	engine->space = C_SpaceNew();
-	engine->col_hand = C_SpaceAddDefaultCollisionHandler(engine->space);
-	engine->col_hand->preSolveFunc = collisionCallback;
+	engine->col_hand = C_SpaceAddCollisionHandler(engine->space, 1, 1);
+	engine->col_hand->beginFunc = collisionCallback;
 	engine->col_hand->userData = engine; //Set the collision handler's user data to the context
 	/* If assets have been embedded, then mount those files */
 	if (sizeof(embedded_binary) > 0) {
@@ -809,14 +870,18 @@ Engine* Tidal_init(int argc, char *argv[]) {
 	return engine;
 }
 
+static void postStep(cpSpace *space, cpShape *shape, void *data) {
+	event_handler(data, TIDAL_EVENT_COLLISION, C_ShapeGetUserData(shape));
+}
+
 /* Part of how Chipmunk2D handles collisions. Is called every time two things collide.
  * Triggers an event for each body colliding.
  */
-static cpBool collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
-	C_ARBITER_GET_BODIES(arb, a, b);
-	event_handler(data, TIDAL_EVENT_COLLISION, C_BodyGetUserData(a));
-	event_handler(data, TIDAL_EVENT_COLLISION, C_BodyGetUserData(b));
-	return cpTrue;
+static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
+	C_ARBITER_GET_SHAPES(arb, a, b);
+	C_SpaceAddPostStepCallback(space, (cpPostStepFunc)postStep, a, data);
+	C_SpaceAddPostStepCallback(space, (cpPostStepFunc)postStep, b, data);
+	return 0;
 }
 
 /* Recursive function to traverse the PHYSFS virtual file
@@ -838,7 +903,7 @@ static int read_files(Engine* engine, const char *path, const char* opt) {
 		for (char** i = rc; *i != NULL; i++) {
 			char* newpath = (char*)calloc(strlen(path)+strlen(*i)+2, 1);
 			if (newpath == NULL) continue;
-			sprintf(newpath, "%s%s%s", path, "/", *i);
+			sprintf(newpath, "%s/%s", path, *i);
 			if (read_files(engine, newpath, opt) < 0) return -1;
 			free(newpath);
 		}
@@ -933,7 +998,6 @@ static int init_texture(Engine* engine, unsigned char* data, size_t len, const c
 	SDL_Surface* surface = I_Load_RW(S_RWFromMem(data, len), 1);
 	engine->textures[engine->textures_num].data = S_CreateTextureFromSurface(engine->renderer, surface);
 	S_FreeSurface(surface);
-	printf("%s\n", S_GetError());
 	engine->textures[engine->textures_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->textures[engine->textures_num].name, path+1);
 	if (!engine->textures[engine->textures_num].data) return -1;
@@ -949,9 +1013,8 @@ static int init_font(Engine* engine, unsigned char* data, size_t len, const char
 	engine->fonts = tmp;
 	engine->fonts[engine->fonts_num].normal = F_CreateFont();
 	engine->fonts[engine->fonts_num].bold = F_CreateFont();
-	// causing segfaults
-	/*F_LoadFontRW(engine->fonts[engine->fonts_num].normal, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_NORMAL);
-	/F_LoadFontRW(engine->fonts[engine->fonts_num].bold, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_BOLD);*/
+	if (F_LoadFontRW(engine->fonts[engine->fonts_num].normal, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_NORMAL) == 0) return -1;
+	if (F_LoadFontRW(engine->fonts[engine->fonts_num].bold, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_BOLD) == 0) return -1;
 	engine->fonts[engine->fonts_num].name = (char*)malloc(strlen(path+1)+1);
 	strcpy(engine->fonts[engine->fonts_num].name, path+1);
 	if (!engine->fonts[engine->fonts_num].normal) return -1;
@@ -1085,7 +1148,7 @@ static char* gen_uuid() {
 	char v[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 	//3fb17ebc-bc38-4939-bc8b-74f2443281d4
 	//8 dash 4 dash 4 dash 4 dash 12
-	static char buf[37] = {0};
+	char* buf = (char*)calloc(37, 1);
 	
 	//gen random for all spaces because lazy
 	for(int i = 0; i < 36; ++i) {
@@ -1183,13 +1246,22 @@ static int action_spawn(Engine* engine, const char* name, int x, int y) {
 			engine->instances[sum].body = C_SpaceAddBody(engine->space,
 				C_BodyNew(1, C_MomentForBox(1, engine->instances[sum].dst.w,
 				engine->instances[sum].dst.h)));
-			C_BodySetPosition(engine->instances[sum].body, cpv(engine->instances[sum].dst.x,
-				engine->instances[sum].dst.y));
-			C_BodySetUserData(engine->instances[sum].body, engine->instances[sum].id);
-			engine->instances[sum].shape = C_SpaceAddShape(engine->space, C_BoxShapeNew(engine->instances[sum].body,
+			engine->instances[sum].shape = C_SpaceAddShape(engine->space,
+				C_BoxShapeNew(engine->instances[sum].body,
 				engine->instances[sum].dst.w, engine->instances[sum].dst.h, 0));
 			C_ShapeSetFriction(engine->instances[sum].shape, 0.7);
-		} //add other shapes
+		} else if (strcmp(shape->valuestring, "wall") == 0) {
+			engine->instances[sum].body = C_BodyNewStatic();
+			engine->instances[sum].shape = C_SpaceAddShape(engine->space,
+				C_BoxShapeNew(engine->instances[sum].body , engine->instances[sum].dst.w,
+					engine->instances[sum].dst.h, 0));
+			C_ShapeSetFriction(engine->instances[sum].shape, 1);
+		}//add other shapes
+		C_BodySetPosition(engine->instances[sum].body, cpv(engine->instances[sum].dst.x,
+			engine->instances[sum].dst.y));
+		C_ShapeSetUserData(engine->instances[sum].shape, engine->instances[sum].id);
+		C_ShapeSetCollisionType(engine->instances[sum].shape, 1);
+		C_SpaceReindexShape(engine->space, engine->instances[sum].shape);
 	}
 
 	const cJSON* ui = J_GetObjectItemCaseSensitive(json, "ui");
@@ -1265,8 +1337,11 @@ static int action_destroy(Engine* engine, char* id) {
 		}
 	}
 
+	C_SpaceRemoveShape(engine->space, instance->shape);
+	C_SpaceRemoveBody(engine->space, instance->body);
 	C_ShapeFree(instance->shape);
 	C_BodyFree(instance->body);
+	free(instance->id);
 
 	for (size_t i = n; i < engine->instances_num-1; i++) engine->instances[i] = engine->instances[i + 1];
 	engine->instances_num -= 1;
@@ -1279,9 +1354,11 @@ static int action_destroy(Engine* engine, char* id) {
 /* Do a Chipmunk "teleport". See action documentation */
 static int action_move(Engine* engine, char* id, int x, int y, bool relative) {
 	cpBody* body = NULL;
+	cpShape* shape = NULL;
 	for (size_t i = 0; i < engine->instances_num; i++) {
 		if (strcmp(engine->instances[i].id, id) == 0) {
 			body = engine->instances[i].body;
+			shape = engine->instances[i].shape;
 			break;
 		}
 	}
@@ -1292,6 +1369,8 @@ static int action_move(Engine* engine, char* id, int x, int y, bool relative) {
 		int rel_y = v.y + y;
 		C_BodySetPosition(body, cpv(rel_x, rel_y));
 	} else C_BodySetPosition(body, cpv(x, y));
+
+	C_SpaceReindexShape(engine->space, shape);
 	return 0;
 }
 
@@ -1373,11 +1452,10 @@ static void draw(Engine* engine) {
 	for (int i = 0; i < engine->instances_num; i++) {
 		Instance* instance = engine->instances + i;
 		S_RenderCopy(engine->renderer, instance->texture, NULL, &instance->dst);
-		/* causing segfaults */
-		//F_Draw(instance->font->normal, engine->renderer, instance->dst.x, instance->dst.y, instance->text);
+		if (instance->text) F_Draw(instance->font->normal, engine->renderer, instance->dst.x, instance->dst.y, "%s", instance->text);
 	}
 	S_RenderCopy(engine->renderer, engine->ui_texture, NULL, &engine->ui_dst);
-	F_Draw(engine->ui_font, engine->renderer, engine->ui_dst.x, engine->ui_dst.y, engine->ui_text);
+	F_Draw(engine->ui_font, engine->renderer, engine->ui_dst.x, engine->ui_dst.y, "%s", engine->ui_text);
 	S_RenderPresent(engine->renderer);
 }
 
@@ -1394,7 +1472,7 @@ static void event_handler(Engine* engine, event_t ev, char* id) {
 		//Special case: some events only trigger based on instance id
 		if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
 		    ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION) {
-			if (action->id != id) continue;
+			if (strcmp(action->id, id) != 0) continue;
 		}
 		const cJSON* type = J_GetObjectItemCaseSensitive(action->data, "type");
 		if (J_IsString(type) && (type->valuestring != NULL)) {
@@ -1461,6 +1539,7 @@ void Tidal_cleanup(Engine* engine) {
 	for (int i = 0; i < engine->instances_num; i++) {
 		C_ShapeFree(engine->instances[i].shape);
 		C_BodyFree(engine->instances[i].body);
+		free(engine->instances[i].id);
 	}
 	free(engine->instances); engine->instances = NULL;
 	free(engine->layers); engine->layers = NULL;

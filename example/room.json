@@ -1,0 +1,41 @@
+{
+	"layer": 0,
+	"font": "DejaVuSans.ttf",
+	"text": "Example: The Game",
+	"events": {
+		"quit": [
+			{
+				"type": "close"
+			}
+		],
+		"creation": [
+			{
+				"type": "music",
+				"file": "background.wav"
+			},
+			{
+				"type": "gravity",
+				"h": 0,
+				"v": 50
+			},
+			{
+				"type": "spawn",
+				"object": "rocket.json",
+				"x": 50,
+				"y": 240
+			},
+			{
+				"type": "spawn",
+				"object": "obstacle.json",
+				"x": 400,
+				"y": 50
+			},
+			{
+				"type": "spawn",
+				"object": "obstacle.json",
+				"x": 400,
+				"y": 400
+			}
+		]
+	}
+}

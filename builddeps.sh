@@ -14,11 +14,11 @@ cd build
 make
 make install
 cd ../../../
+mkdir -p /usr/local/include/SDL2 && cp /$MSYSTEM/include/SDL2/* /usr/local/include/SDL2/
 cp deps/sdl2/build/build/.libs/libSDL2.a lib/ || exit 1
 cp deps/sdl2/build/build/.libs/libSDL2.so lib/ || \
 cp deps/sdl2/build/build/.libs/SDL2.dll lib/ || \
 exit 1
-mkdir -p /usr/local/include/SDL2 && cp /$MSYSTEM/include/SDL2/* /usr/local/include/SDL2/ || exit 1
 
 # Build PHYSFS
 git clone --branch stable-3.0 https://github.com/icculus/physfs.git deps/physfs
@@ -29,9 +29,9 @@ cmake -Bbuild \
 cmake --build build --target all --target docs
 make -C build install
 cd ../../
+cp deps/physfs/build/libphysfs.so /$MSYSTEM/bin/
 cp deps/physfs/build/libphysfs.a lib/ || exit 1
 cp deps/physfs/build/libphysfs.so lib/ || exit 1
-cp deps/physfs/build/libphysfs.so /$MSYSTEM/bin/ || exit 1
 
 # Build cJSON
 git clone https://github.com/DaveGamble/cJSON.git deps/cjson
@@ -40,9 +40,9 @@ cmake -B build -DENABLE_CJSON_UTILS=Off -DENABLE_CJSON_TEST=Off -DBUILD_SHARED_A
 make -C build
 make -C build install
 cd ../../
+cp deps/cjson/build/libcjson.so /$MSYSTEM/bin/
 cp deps/cjson/build/libcjson.a lib/ || exit 1
 cp deps/cjson/build/libcjson.so lib/ || exit 1
-cp deps/cjson/build/libcjson.so /$MSYSTEM/bin/
 
 # Build Chipmunk2D
 git clone https://github.com/slembcke/Chipmunk2D deps/chipmunk
@@ -58,9 +58,9 @@ sed -i 's|D:|/d|g' build/src/CMakeFiles/chipmunk_static.dir/compiler_depend.make
 make -C build
 make -C build install
 cd ../../
+cp deps/chipmunk/build/src/libchipmunk.so /$MSYSTEM/bin/
 cp deps/chipmunk/build/src/libchipmunk.a lib/ || exit 1
 cp deps/chipmunk/build/src/libchipmunk.so lib/ || exit 1
-cp deps/chipmunk/build/src/libchipmunk.so /$MSYSTEM/bin/
 
 # Build SDL2 image
 git clone --branch SDL2 https://github.com/libsdl-org/SDL_image deps/image
@@ -89,39 +89,45 @@ cmake -B build -DSDL2IMAGE_SAMPLES=OFF
 make -C build
 make -C build install
 cd ../../
-cp deps/image/build/libSDL2_image.so lib/ || exit 1
 cp deps/image/build/libSDL2_image.so /$MSYSTEM/bin/
+cp deps/image/build/libSDL2_image.so lib/ || exit 1
 
 # Build asound
-git clone https://github.com/alsa-project/alsa-lib deps/asound
-cd deps/asound
-autoreconf -fiv
-CFLAGS+=" -flto-partition=none"
-./configure --enable-shared=yes --enable-static=yes \
-  --without-debug
-sed -i -e 's/ -shared / -Wl,-O1,--as-needed\0/g' libtool
-make
-cd ../../
+#git clone https://github.com/alsa-project/alsa-lib deps/asound
+#cd deps/asound
+#autoreconf -fiv
+#CFLAGS+=" -flto-partition=none"
+#./configure --enable-shared=yes --enable-static=yes \
+#  --without-debug
+#sed -i -e 's/ -shared / -Wl,-O1,--as-needed\0/g' libtool
+#make
+#cd ../../
 
 # Build genie
 git config --global http.sslVerify false
 git clone https://aur.archlinux.org/genie-git.git deps/genie
 cd deps/genie
 makepkg
-cp src/GENie/bin/windows/genie.exe /usr/bin/ || exit 1
+cp src/GENie/bin/windows/genie.exe /usr/bin/
 cd ../../
 
 # Build SoLoud
 git clone https://github.com/jarikomppa/soloud deps/soloud
 cd deps/soloud
 sed -i 's|#if defined(_MSC_VER)|#ifdef _WIN32|g' src/backend/sdl/soloud_sdl2_dll.c
-#sed -i 's|WITH_WINMM = 1|WITH_WINMM = 0|g' genie.lua
 cp ../sdl2/include/* include/
 cd build
+#sed -i 's|WITH_WINMM = 1|WITH_WINMM = 0|g' genie.lua
+sed -i '|if _OPTIONS["with-sdl2-only"] then|a WITH_ALSA=0\t' genie.lua
 genie --with-sdl2-only gmake
 cd gmake
 sed -i 's|/DEF.*||g' SoloudDynamic.make
-sed -i 's|libsoloud_static.a|libsoloud_static.a /ucrt64/lib/libdl.a|g' SoloudDynamic.make
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        PREFIX=/usr
+elif [[ "$OSTYPE" == "msys" ]]; then
+        PREFIX=/ucrt64
+fi
+sed -i "s|libsoloud_static.a|libsoloud_static.a $PREFIX/lib/libdl.a|g" SoloudDynamic.make
 make config=release SoloudDynamic
 cd ../../
 #ar r lib/libsoloud_static.a build/gmake/release/Release/SoloudDynamic/src/c_api/*.o
@@ -129,11 +135,12 @@ cd ../../
 #ar -x libasound.a
 #ar r lib/libsoloud_static.a *.o
 cd ../../
+mkdir -p /$MSYSTEM/include/soloud && cp deps/soloud/include/* /$MSYSTEM/include/
+cp deps/soloud/lib/soloud.dll /$MSYSTEM/bin/
 cp deps/soloud/lib/libsoloud_static.a lib/libsoloud.a || exit 1
 cp deps/soloud/lib/libsoloud.so lib/ || \
-cp deps/soloud/lib/soloud.dll lib/ && cp deps/soloud/lib/soloud.dll /$MSYSTEM/bin/ || \
+cp deps/soloud/lib/soloud.dll lib/ || \
 exit 1
-mkdir -p /$MSYSTEM/include/soloud && cp deps/soloud/include/* /$MSYSTEM/include/ || exit 1
 
 # Build SDL2 ttf
 git clone --branch SDL2 https://github.com/libsdl-org/SDL_ttf deps/ttf
@@ -164,9 +171,9 @@ ar -x libfreetype.a
 ar -x libSDL2_ttf.a
 ar -crs libFontCache.a *.o
 cd ../../
+cp deps/font/SDL_FontCache.h /$MSYSTEM/include/SDL2/
 cp deps/font/libFontCache.a lib/ || exit 1
 cp deps/font/libSDL2_FontCache.so lib/ || exit 1
-cp deps/font/SDL_FontCache.h /$MSYSTEM/include/SDL2/ || exit 1
 
 # Build openssl
 git clone https://github.com/openssl/openssl deps/ssl
