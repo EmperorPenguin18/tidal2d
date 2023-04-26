@@ -1,8 +1,16 @@
-build: src/*.cc
-	g++ -g -Og -D DEBUG -l SDL2 -l physfs -l cjson -l SDL2_ttf -l chipmunk -l SDL2_mixer src/*.cc -o tidalpp
+ifeq ($(STATIC),1)
+	OPTS = -D STATIC -static -lSDL2 -lphysfs -lcjson -lchipmunk -lSDL2_image -lsoloud -lFontCache -lcrypto -lm -lstdc++
+else
+	OPTS = 
+endif
 
-release: src/*.cc
-	g++ -O3 -l SDL2 -l physfs -l cjson -l SDL2_ttf -l chipmunk -l SDL2_mixer src/*.cc -o tidalpp
+COMMON = $(OPTS) -I./ -I/usr/local/include -Llib
+
+build: src/*.c
+	gcc -g -Og -o tidalpp src/*.c -D DEBUG -Wall $(COMMON)
+
+release: src/*.c
+	gcc -O3 -o tidalpp src/*.c $(COMMON)
 
 install: src/*.h tidalpp
 	mkdir -p /usr/include/tidal
@@ -12,3 +20,5 @@ install: src/*.h tidalpp
 
 clean:
 	rm -f tidalpp
+	rm -rf deps
+	rm -rf lib

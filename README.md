@@ -2,7 +2,7 @@
 Simple game engine
 
 ## Features
-- Tested for Linux, but probably works on other OSs
+- Developed on Linux, and should work on Windows
 - Uses SDL2 for cross-platform media capabilities
 - To access the filesystem PHYSFS is used
 - Physics engine using Chipmunk2d
@@ -12,7 +12,7 @@ Features will be added to suit other projects I'm working on.
 
 ## Dependencies
 
-SDL2, SDL2_ttf, SDL2_mixer, PHYSFS, cJSON, Chipmunk
+SDL2, PHYSFS, cJSON, Chipmunk, SDL image, Soloud, SDL FontCache, and libcrypt (openssl)
 
 ## Install
 Arch
@@ -33,4 +33,4 @@ make install #as root
 ## Documentation
 See the [wiki](https://github.com/EmperorPenguin18/tidalpp/wiki/)
 ## Games using Tidalpp
-
+[Example: The Game](https://github.com/EmperorPenguin18/tidalpp/tree/main/example)

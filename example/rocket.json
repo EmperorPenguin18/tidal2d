@@ -1,0 +1,45 @@
+{
+	"layer": 1,
+	"width": 50,
+	"height": 50,
+	"sprite": "rocket.png",
+	"shape": "box",
+	"events": {
+		"key_space": [
+			{
+				"type": "speed",
+				"h": 50,
+				"v": -75
+			},
+			{
+				"type": "sound",
+				"file": "thrust.sfx"
+			}
+		],
+		"creation": [
+			{
+				"type": "speed",
+				"h": 50,
+				"v": 0
+			}
+		],
+		"collision": [
+			{
+				"type": "destroy"
+			}
+		],
+		"leave": [
+			{
+				"type": "move",
+				"x": 50,
+				"y": 240,
+				"relative": false
+			},
+			{
+				"type": "speed",
+				"h": 50,
+				"v": 0
+			}
+		]
+	}
+}
