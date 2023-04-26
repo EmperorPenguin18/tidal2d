@@ -1,7 +1,7 @@
 # Maintainer: Sebastien MacDougall-Landry
 
 pkgname=tidalpp
-pkgver=0.1
+pkgver=0.2
 pkgrel=1
 pkgdesc='Simple game engine'
 url='https://github.com/EmperorPenguin18/tidalpp/'
