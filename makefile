@@ -1,5 +1,5 @@
 ifeq ($(STATIC),1)
-	OPTS = -D STATIC -static -lSDL2 -lphysfs -lcjson -lchipmunk -lSDL2_image -lsoloud -lFontCache -lcrypto -lm -lstdc++
+	OPTS = -D STATIC -static -lSDL2 -lchipmunk
 else
 	OPTS = 
 endif

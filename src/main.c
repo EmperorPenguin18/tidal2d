@@ -2,24 +2,17 @@
 //License is available at
 //https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
 
-#include "tidal.h"
+#include "engine.h"
+#include <SDL2/SDL_main.h>
 
 int main(int argc, char *argv[]) {
-	Engine* engine = Tidal_init(argc, argv);
-	if (engine == NULL) {
-		Tidal_error();
+	Engine* e = engine_init(argc, argv);
+	if (e == NULL) {
+		engine_error();
 		return 1;
 	}
-	Tidal_run(engine);
-	Tidal_cleanup(engine);
-	engine = NULL;
+	engine_run(e);
+	engine_cleanup(e);
+	e = NULL;
 	return 0;
 }
-
-/* Windows needs this during linking */
-#ifdef _WIN32
-#include <windows.h>
-int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char*, int nShowCmd) {
-	return main(__argc, __argv);
-}
-#endif
