@@ -7,22 +7,6 @@
 
 #include <stdbool.h>
 
-/* Instance definition. These are organized into layers
- * and looped over frequently. Could definitely use some
- * optimization
- */
-struct Instance {
-	char* id;
-	SDL_Rect dst;
-	SDL_Texture* texture;
-	Font* font;
-	const char* text;
-	cpBody* body;
-	cpShape* shape;
-	size_t layer;
-};
-typedef struct Instance Instance;
-
 /* The context struct. Keeps track of all state related
  * stuff, and asset arrays.
  */
@@ -48,6 +32,7 @@ struct Engine {
 	cpCollisionHandler* col_hand;
 	Asset* events[EVENTS_NUM];
 	size_t events_num[EVENTS_NUM];
+	SDL_AudioDeviceID audiodev;
 };
 typedef struct Engine Engine;
 

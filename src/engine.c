@@ -6,6 +6,9 @@
 #include "embedded_assets.h"
 #include <time.h>
 
+#define ZPL_NANO
+#include <zpl.h>
+
 static Engine* engine_alloc() {
 	Engine* e = (Engine*)malloc(sizeof(Engine));
 	if (e == NULL) return NULL;
@@ -35,17 +38,17 @@ static Engine* engine_alloc() {
 static int setup_env(Engine* e) {
 	time_t t;
 	srand((unsigned) time(&t));
-	if (S_Init(SDL_INIT_EVERYTHING) < 0) return -1;
+	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) return -1;
 #ifdef DEBUG
 	S_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "SDL initialized");
-	e->window = S_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
-	if (!engine->window) return -1;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Window created");
-	e->renderer = S_CreateRenderer(engine->window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
-	if (!engine->renderer) return -1;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Renderer created");
+	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
+	if (!e->window) return -1;
+	e->renderer = SDL_CreateRenderer(engine->window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
+	if (!e->renderer) return -1;
+	e->audiodev = SDL_OpenAudioDevice(NULL, 0, NULL, NULL, SDL_AUDIO_ALLOW_ANY_CHANGE);
+	if (!e->audiodev) return -1;
+	SDL_PauseAudioDevice(e->audiodev, 0);
 	e->space = C_SpaceNew();
 	e->col_hand = C_SpaceAddCollisionHandler(engine->space, 1, 1);
 	e->col_hand->beginFunc = collisionCallback;
@@ -53,22 +56,56 @@ static int setup_env(Engine* e) {
 	return 0;
 }
 
-static int load_assets(Engine* e) {
-	if (sizeof(embedded_binary) > 0) if (mount_memory() < 0) return -1;
-	for (size_t i = 1; i < argc; i++) {
-		if (mount(argv[i]) < 0) return -1;
-	}
-	char[][] names = NULL;
-	void*[] binaries = NULL;
-	if (read_files(&names, &binaries, &e->assets_num) < 0) return -1;
-	Asset* tmp = (Asset*)realloc(e->assets, (e->assets_num)*sizeof(Asset));
-	if (tmp == NULL) return -1;
+static zpl_isize tar_callback(zpl_file* archive, zpl_tar_record* file, void* user_data) {
+	if (file->error != ZPL_TAR_ERROR_NONE || file->type != ZPL_TAR_TYPE_REGULAR)
+		return 0; /* skip file */
+
+	Engine* e = user_data;
+	Asset* tmp = (Asset*)realloc(e->assets, (e->assets_num+1)*sizeof(Asset));
+	if (!tmp) return -1;
 	e->assets = tmp;
-	for (size_t i = 0; i < assets_num; i++) {
-		if (asset_init(e->assets+i, names[i], binaries[i]) < 0) return -1;
-		free(names[i]);
+	if (asset_init(e->assets+e->assets_num+1, file->path,
+		zpl_file_stream_buf(archive)+file->offset, file->length) < 0) return -1;
+	e->assets_num++;
+	return 0;
+}
+
+static int load_assets(Engine* e) {
+	if (sizeof(embedded_binary) > 0) {
+		zpl_file file;
+		zpl_file_stream_open(&file, zpl_heap(), embedded_binary, sizeof(embedded_binary), 0);
+		zpl_tar_unpack(&file, tar_callback, e);
+		zpl_file_close(&file);
 	}
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Files read");
+	//embedded_path at some point
+	for (size_t i = 1; i < argc; i++) {
+		if (is_dir(argv[i])) {
+			size_t num = 0;
+			char[][] names = list_files(&num, argv[i]);
+			if (!names) return -1;
+			Asset* tmp = (Asset*)realloc(e->assets, (e->assets_num+num)*sizeof(Asset));
+			if (!tmp) return -1;
+			e->assets = tmp;
+			for (size_t j = 0; j < num; j++) {
+				size_t filesize = 0;
+				void* bin = SDL_LoadFile(names[j], &filesize);
+				if (asset_init(e->assets+e->assets_num+j, names[j], bin, filesize) < 0)
+					return -1;
+				free(names[j]);
+			}
+			e->assets_num += num;
+			free(names);
+		} else {
+			Asset* tmp = (Asset*)realloc(e->assets, (e->assets_num+1)*sizeof(Asset));
+			if (!tmp) return -1;
+			e->assets = tmp;
+			size_t filesize = 0;
+			void* bin = SDL_LoadFile(argv[i], &filesize);
+			if (asset_init(e->assets+e->assets_num+1, argv[i], bin, filesize) < 0)
+				return -1;
+			e->assets_num++;
+		}
+	}
 	return 0;
 }
 
@@ -209,6 +246,7 @@ void engine_cleanup(Engine* e) {
 		engine->events[i] = NULL;
 	}
 	C_SpaceFree(engine->space); engine->space = NULL;
+	SDL_CloseAudioDevice(e->audiodev);
 	S_DestroyRenderer(engine->renderer); engine->renderer = NULL;
 	S_DestroyWindow(engine->window); engine->window = NULL;
 	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Window freed");

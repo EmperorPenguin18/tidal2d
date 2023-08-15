@@ -4,17 +4,151 @@
 
 #include "assets.h"
 #include "common.h"
+#include "sfx.h"
 
-int asset_init(Asset* asset, const char* path, const unsigned char* raw) {
-	asset->name = (char*)malloc(strlen(path)+1);
-	strcpy(asset->name, path);
-	if (type_handler(asset, getextension(path)) < 0) return -1;
-	if (asset->create(&asset->data, raw) < 0) return -1;
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb/stb_truetype.h>
+#define STB_VORBIS_IMPLEMENTATION
+#include <stb/stb_vorbis.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#define NANOSVG_IMPLEMENTATION
+#include <nanosvg/nanosvgrast.h>
+
+#define ZPL_ENABLE_PARSER
+#include <zpl.h>
+
+static int bmp_create(void** out, void* in, const size_t len) {
+	SDL_Surface* surface = SDL_LoadBMP_RW(S_RWFromMem(in, len), 1);
+	if (!surface) return -1;
+	*out = surface;
 	return 0;
 }
 
-void asset_cleanup(Asset* asset) {
-	asset->destroy(&asset->data);
+static void bmp_destroy(void* in) {
+	SDL_FreeSurface(in);
+}
+
+static int stb_create(void** out, void* in, const size_t len) {
+	int w, h, n;
+	unsigned char* data = stbi_load_from_memory(in, &w, &h, &n, 0);
+	if (!data) return -1;
+	SDL_Surface* surface = SDL_CreateRGBSurface(0, w, h, n*8, 0, 0, 0, 0);
+	if (!surface) return -1;
+	memcpy(surface->pixels, data);
+	stbi_image_free(data);
+	SDL_free(in);
+	*out = surface;
+	return 0;
+}
+
+static void stb_destroy(void* in) {
+	SDL_FreeSurface(in);
+}
+
+static int svg_create(void** out, void* in, const size_t len) {
+	NSVGimage* image = nsvgParse(in, "px", 96);
+	struct NSVGrasterizer* rast = nsvgCreateRasterizer();
+	SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, image->width, image->height, 32, SDL_PIXELFORMAT_RGBA32);
+	nsvgRasterize(rast, image, 0, 0, 1, surface->pixels, surface->w, surface->h, surface->pitch);
+	nsvgDeleteRasterizer(rast);
+	nsvgDelete(image);
+	SDL_free(in);
+	*out = surface;
+	return 0;
+}
+
+static void svg_destroy(void* in) {
+	SDL_FreeSurface(in);
+}
+
+static int json_create(void** out, void* in, const size_t len) {
+	zpl_json_object root = malloc(sizeof(zpl_json_object));
+	zpl_json_parse(root, in, NULL);
+	if (!root) return -1;
+	SDL_free(in);
+	*out = root;
+	return 0;
+}
+
+static void json_destroy(void* in) {
+	free(in);
+}
+
+static int ttf_create(void** out, void* in, const size_t len) {
+	stbtt_fontinfo* info = malloc(sizeof(stbtt_fontinfo));
+	if (stbtt_InitFont(&info, in, 0) == 0) return -1;
+	*out = info;
+	return 0;
+}
+
+static void ttf_destroy(void* in) {
+	SDL_free(in->data);
+	free(in);
+}
+
+static int wav_create(void** out, void* in, const size_t len) {
+	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
+	Uint8* buffer;
+	Uint32 size;
+	spec = SDL_LoadWAV_RW(SDL_RWFromMem(in, len), 1, spec, &buffer, &size);
+	if (!spec) return -1;
+	spec->userdata = buffer;
+	SDL_free(in);
+	*out = spec;
+	return 0;
+}
+
+static void wav_destroy(void* in) {
+	SDL_FreeWAV(in->userdata);
+	free(in);
+}
+
+static int vorb_create(void** out, void* in, const size_t len) {
+	int error = 0;
+	stb_vorbis* vorbis = stb_vorbis_open_memory(in, len, &error, NULL);
+	if (error != 0) return -1;
+	stb_vorbis_info info = stb_vorbis_get_info(vorbis);
+	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
+	spec->freq = info.sample_rate;
+	spec->format = AUDIO_S16;
+	spec->channels = 2;
+	spec->samples = 1024;
+	spec->userdata = vorbis;
+	SDL_free(in);
+	*out = spec;
+	return 0;
+}
+
+static void vorb_destroy(void* in) {
+	stb_vorbis_close(in->userdata);
+	free(in);
+}
+
+static int sfx_create(void** out, void* in, const size_t len) {
+	Sfx sfx;
+	if (load_sfx(&sfx, in) < 0) return -1;
+	SDL_free(in);
+	void* wav;
+	size_t wav_len = 0;
+	if (sfx2wav(&wav, &wav_len, &sfx) < 0) return -1;
+	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
+	Uint8* buffer;
+	Uint32 size;
+	spec = SDL_LoadWAV_RW(SDL_RWFromMem(wav, wav_len), 1, spec, &buffer, &size);
+	if (!spec) return -1;
+	spec->userdata = buffer;
+	free(wav);
+	*out = spec;
+	return 0;
+}
+
+static void sfx_destroy(void* in) {
+	free(in); //temp
 }
 
 /* Based on extension given, sets the function pointers for an asset.
@@ -41,9 +175,9 @@ static int type_handler(Asset* asset, const char* ext) {
 	} else if (strcmp(ext, "ogg") == 0) {
 		asset->create = &vorb_create;
 		asset->destroy = &vorb_destroy;
-	} else if (strcmp(ext, "sfx") == 0) {
+	/*} else if (strcmp(ext, "sfx") == 0) {
 		asset->create = &sfx_create;
-		asset->destroy = &sfx_destroy;
+		asset->destroy = &sfx_destroy;*/
 	} else {
 		fprintf(stderr, "Unsupported file type");
 		return -1;
@@ -51,103 +185,14 @@ static int type_handler(Asset* asset, const char* ext) {
 	return 0;
 }
 
-/* Read in JSON data */
-/*static int obj_handler(Engine* engine, unsigned char* data, size_t len, const char* path) {
-	engine->objects[engine->objects_num].data = J_ParseWithLength((char*)data, len);
-	if (!engine->objects[engine->objects_num].data) {
-		S_Log("cJSON error: %s", J_GetErrorPtr());
-		return -1;
-	}
-	const cJSON* layer = J_GetObjectItemCaseSensitive(engine->objects[engine->objects_num].data, "layer");
-	if (J_IsNumber(layer)) {
-		if (layer->valueint < engine->first_layer) {
-			engine->first_object = engine->objects + engine->objects_num;
-			engine->first_layer = layer->valueint;
-		}
-	}
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Object successfully created");
+int asset_init(Asset* asset, const char* path, void* raw, const size_t len) {
+	asset->name = (char*)malloc(strlen(path)+1);
+	strcpy(asset->name, path);
+	if (type_handler(asset, getextension(path)) < 0) return -1;
+	if (asset->create(&asset->data, raw, len) < 0) return -1;
 	return 0;
-}*/
+}
 
-/* Read in image data */
-/*static int init_texture(Engine* engine, unsigned char* data, size_t len, const char* path) {
-	Texture* tmp = (Texture*)realloc(engine->textures, (engine->textures_num+1)*sizeof(Texture));
-	if (tmp == NULL) return -1;
-	engine->textures = tmp;
-	SDL_Surface* surface = I_Load_RW(S_RWFromMem(data, len), 1);
-	engine->textures[engine->textures_num].data = S_CreateTextureFromSurface(engine->renderer, surface);
-	S_FreeSurface(surface);
-	engine->textures[engine->textures_num].name = (char*)malloc(strlen(path+1)+1);
-	strcpy(engine->textures[engine->textures_num].name, path+1);
-	if (!engine->textures[engine->textures_num].data) return -1;
-	engine->textures_num++;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Texture successfully created");
-	return 0;
-}*/
-
-/* Read in font data */
-/*static int init_font(Engine* engine, unsigned char* data, size_t len, const char* path) {
-	Font* tmp = (Font*)realloc(engine->fonts, (engine->fonts_num+1)*sizeof(Font));
-	if (tmp == NULL) return -1;
-	engine->fonts = tmp;
-	engine->fonts[engine->fonts_num].normal = F_CreateFont();
-	engine->fonts[engine->fonts_num].bold = F_CreateFont();
-	if (F_LoadFontRW(engine->fonts[engine->fonts_num].normal, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_NORMAL) == 0) return -1;
-	if (F_LoadFontRW(engine->fonts[engine->fonts_num].bold, engine->renderer, S_RWFromMem(data, len), 1, 28, F_MakeColor(0, 0, 0, 255), TTF_STYLE_BOLD) == 0) return -1;
-	engine->fonts[engine->fonts_num].name = (char*)malloc(strlen(path+1)+1);
-	strcpy(engine->fonts[engine->fonts_num].name, path+1);
-	if (!engine->fonts[engine->fonts_num].normal) return -1;
-	engine->fonts_num++;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Font successfully created");
-	return 0;
-}*/
-
-/* Read in audio data. Based on "type" input, different
- * file types can be read from.
- */
-/*static int init_audio(Engine* engine, unsigned char* data, size_t len, const char* path, int type) {
-	Audio* tmp = (Audio*)realloc(engine->audio, (engine->audio_num+1)*sizeof(Audio));
-	if (tmp == NULL) return -1;
-	engine->audio = tmp;
-	int err = 0;
-	if (type == 0) {
-		engine->audio[engine->audio_num].data = O_WavCreate();
-		err = O_WavLoadMemEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 1, 0);
-	} else if (type == 1) {
-		engine->audio[engine->audio_num].data = O_SfxrCreate();
-		err = O_SfxrLoadParamsEx(engine->audio[engine->audio_num].data, (unsigned char*)data, len, 1, 0);
-	}
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Soloud load error: %s", O_getErrorString(engine->soloud, err));
-	engine->audio[engine->audio_num].name = (char*)malloc(strlen(path+1)+1);
-	strcpy(engine->audio[engine->audio_num].name, path+1);
-	if (!engine->audio[engine->audio_num].data) return -1;
-	engine->audio_num++;
-	S_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio successfully created");
-	return 0;
-}*/
-
-/* Part of WIP ui system */
-/*static int init_ui(Engine* engine, int n) {
-	Instance** tmp = (Instance**)realloc(engine->ui, (engine->ui_num+1)*sizeof(Instance*));
-	if (tmp == NULL) return -1;
-	engine->ui = tmp;
-	engine->ui[engine->ui_num] = engine->instances + n;
-	if (engine->ui_num == 0) {
-		engine->ui_dst = engine->instances[n].dst;
-		if (engine->instances[n].texture != NULL) {
-			S_DestroyTexture(engine->ui_texture);
-			engine->ui_texture = S_CreateTexture(engine->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, engine->ui_dst.w + 10, engine->ui_dst.h + 10);
-			S_SetRenderTarget(engine->renderer, engine->ui_texture);
-			S_SetRenderDrawColor(engine->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
-			S_RenderDrawRect(engine->renderer, NULL);
-			//S_SetRenderDrawColor(engine->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
-			S_SetRenderTarget(engine->renderer, NULL);
-		}
-		if (engine->instances[n].font != NULL && engine->instances[n].text != NULL) {
-			engine->ui_font = engine->instances[n].font->bold;
-			engine->ui_text = engine->instances[n].text;
-		}
-	}
-	engine->ui_num++;
-	return 0;
+void asset_cleanup(Asset* asset) {
+	asset->destroy(&asset->data);
 }

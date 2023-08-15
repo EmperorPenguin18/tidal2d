@@ -66,7 +66,7 @@ static int action_gravity(Engine* engine, int h, int v) {
 static int action_sound(Engine* engine, char* file) {
 	for (size_t i = 0; i < engine->audio_num; i++) {
 		if (strcmp(engine->audio[i].name, file) == 0) {
-			O_playEx(engine->soloud, engine->audio[i].data, 1.0, 0.0, 0, 0);
+			SDL_QueueAudio(engine->audiodev, audio[i].userdata, audio[i].size);
 			break;
 		}
 	}

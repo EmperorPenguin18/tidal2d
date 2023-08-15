@@ -13,8 +13,8 @@
 struct Asset {
 	char* name;
 	void* data;
-	int (*create)(void**, const unsigned char*);
-	void (*destroy)();
+	int (*create)(void**, void*, const size_t);
+	void (*destroy)(void*);
 };
 typedef struct Asset Asset;
 

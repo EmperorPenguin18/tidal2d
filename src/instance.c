@@ -157,6 +157,13 @@ int instantiate() {
 		}
 	}
 
+	const cJSON* layer = J_GetObjectItemCaseSensitive(engine->objects[engine->objects_num].data, "layer");
+	if (J_IsNumber(layer)) {
+		if (layer->valueint < engine->first_layer) {
+			engine->first_object = engine->objects + engine->objects_num;
+			engine->first_layer = layer->valueint;
+		}
+	}
 	return 0;
 }
 

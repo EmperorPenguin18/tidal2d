@@ -4,26 +4,27 @@
 
 #include "filesystem.h"
 
-/* Basic reading data from file in virtual file system */
-unsigned char* read_data(const char* path, size_t* len) {
-	PHYSFS_File* file = P_openRead(path);
-	if (file == NULL) return NULL;
-	*len = P_fileLength(file);
-	if (*len == -1) return NULL;
-	unsigned char* data = (unsigned char*)calloc(*len+1, 1);
-	if (data == NULL) return NULL;
-	P_readBytes(file, data, *len);
-	if (P_close(file) == 0) return NULL;
-	return data;
-}
+#define ZPL_NANO
+#include <zpl.h>
 
 /* Create a listing of all items in a directory */
-char** list_files(const char* path) {
+char[][] list_files(size_t* num, const char* path) {
+	char[][] out = NULL;
+	size_t n = 0;
+	zpl_dir_info dir = {0};
+	zpl_dirinfo_init(&dir, path);
+	for (int i = 0; i < zpl_array_count(dir.entries); i++) {
+		zpl_dir_entry* e = dir.entries + i;
+		if (e->type == ZPL_DIR_TYPE_FILE) {
+			(char**) tmp = realloc(out, (n+1)*sizeof(char*));
+			if (!tmp) return NULL;
+			out = tmp;
+			out[n] = (char*)malloc(strlen(e->filename)+1);
+			strcpy(out[n], e->filename);
+			n++;
+		}
+	}
+	zpl_dirinfo_free(&dir);
+	*num = n;
+	return out;
 }
-
-/* Create a listing of all items in embedded
- * binary.
- */
-char** list_memory() {
-}
-
