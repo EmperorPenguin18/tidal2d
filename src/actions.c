@@ -2,164 +2,189 @@
 //License is available at
 //https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
 
-#include "events.h"
-
-/* Action to instantiate an object. Currently quite complex because all the processing
- * of JSON and assigning resources happens in this function. Also has to sort out the
- * layers each time. Will probably eventually be a performance bottleneck. Should add
- * more error messages to inform developer there object is malformed.
- */
-static int action_spawn(Engine* engine, const char* name, int x, int y) {
-	instance_copy();
-	event_handler(engine, TIDAL_EVENT_CREATION, engine->instances[sum].id);
-	return 0;
-}
-
-/* Free resources used by instance. See action documentation. */
-static int action_destroy(Engine* engine, char* id) {
-	event_handler(engine, TIDAL_EVENT_DESTRUCTION, id);
-	instance_cleanup();
-	return 0;
-}
+#include "actions.h"
 
 /* Do a Chipmunk "teleport". See action documentation */
-static int action_move(Engine* engine, char* id, int x, int y, bool relative) {
-	cpBody* body = NULL;
-	cpShape* shape = NULL;
-	for (size_t i = 0; i < engine->instances_num; i++) {
-		if (strcmp(engine->instances[i].id, id) == 0) {
-			body = engine->instances[i].body;
-			shape = engine->instances[i].shape;
-			break;
-		}
-	}
-
-	if (relative) {
-		cpVect v = C_BodyGetPosition(body);
-		int rel_x = v.x + x;
-		int rel_y = v.y + y;
-		C_BodySetPosition(body, cpv(rel_x, rel_y));
-	} else C_BodySetPosition(body, cpv(x, y));
-
-	C_SpaceReindexShape(engine->space, shape);
-	return 0;
+static void action_move(Engine* e, Instance* instance, void* args[]) {
+	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Move: %d %d %d\n", *(int*)args[0], *(int*)args[1], *(bool*)args[2]);
+	if (*(bool*)args[2]) {
+		cpVect v = cpBodyGetPosition(instance->body);
+		int rel_x = v.x + *(int*)args[0];
+		int rel_y = v.y + *(int*)args[1];
+		cpBodySetPosition(instance->body, cpv(rel_x, rel_y));
+	} else cpBodySetPosition(instance->body, cpv(*(int*)args[0], *(int*)args[1]));
+	cpSpaceReindexShape(e->space, instance->shape);
 }
 
 /* Change a physics body velocity. See action documentation. */
-static int action_speed(Engine* engine, char* id, int h, int v) {
-	for (size_t i = 0; i < engine->instances_num; i++) {
-		if (strcmp(engine->instances[i].id, id) == 0) {
-			C_BodySetVelocity(engine->instances[i].body, cpv(h, v));
-			break;
-		}
-	}
-	return 0;
+static void action_speed(Engine* e, Instance* instance, void* args[]) {
+	cpBodySetVelocity(instance->body, cpv(*(int*)args[0], *(int*)args[1]));
 }
 
 /* Set the space's gravity. See action documentation. */
-static int action_gravity(Engine* engine, int h, int v) {
-	C_SpaceSetGravity(engine->space, cpv(h, v));
-	return 0;
+static void action_gravity(Engine* e, Instance* instance, void* args[]) {
+	cpSpaceSetGravity(e->space, cpv(*(int*)args[0], *(int*)args[1]));
 }
 
 /* Play audio once. See action documentation. */
-static int action_sound(Engine* engine, char* file) {
-	for (size_t i = 0; i < engine->audio_num; i++) {
-		if (strcmp(engine->audio[i].name, file) == 0) {
-			SDL_QueueAudio(engine->audiodev, audio[i].userdata, audio[i].size);
-			break;
-		}
-	}
-	return 0;
+static void action_sound(Engine* e, Instance* instance, void* args[]) {
+	SDL_ClearQueuedAudio(e->audiodev);
+	SDL_AudioSpec* spec = args[0];
+	SDL_QueueAudio(e->audiodev, spec->userdata, spec->size);
 }
 
 /* Play audio on loop. See action documentation. */
-static int action_music(Engine* engine, char* file) {
-	for (size_t i = 0; i < engine->audio_num; i++) {
-		if (strcmp(engine->audio[i].name, file) == 0) {
-			unsigned int h = O_playBackgroundEx(engine->soloud, engine->audio[i].data, 1.0, 0, 0);
-			O_setLooping(engine->soloud, h, 1);
-			break;
-		}
-	}
-	return 0;
+static void action_music(Engine* e, Instance* instance, void* args[]) {
+	e->music = args[0];
 }
 
 /* End the game loop. See action documentation. */
-static int action_close(Engine* engine) {
-	engine->running = false;
-	return 0;
+static void action_close(Engine* e, Instance* instance, void* args[]) {
+	e->running = false;
 }
 
 /* Part of the WIP ui system. */
-static int action_checkui(Engine* engine) {
-	event_handler(engine, TIDAL_EVENT_CHECKUI, NULL);
+/*static int action_checkui(Engine* engine, Instance* instance, void*[] args, int num) {
+	event_handler(engine, TIDAL_EVENT_CHECKUI);
+}*/
+
+static int action_handler(Action* action, zpl_json_object* json, Asset* assets, const size_t assets_num) {
+	zpl_json_object* type = zpl_adt_query(json, "type");
+	if (type == NULL) return -1;
+	if (type->type != ZPL_ADT_TYPE_STRING) return -1;
+
+	if (strcmp(type->string, "spawn") == 0) {
+		zpl_json_object* object = zpl_adt_query(json, "object");
+		if (object == NULL) return -1;
+		if (object->type != ZPL_ADT_TYPE_STRING) return -1;
+		zpl_json_object* x = zpl_adt_query(json, "x");
+		if (x == NULL) return -1;
+		if (x->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		zpl_json_object* y = zpl_adt_query(json, "y");
+		if (y == NULL) return -1;
+		if (y->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		action->args = malloc(3*sizeof(void*));
+		action->args[0] = malloc(strlen(object->string)+1);
+		strcpy(action->args[0], object->string);
+		action->args[1] = malloc(sizeof(int));
+		*(int*)action->args[1] = x->integer;
+		action->args[2] = malloc(sizeof(int));
+		*(int*)action->args[2] = y->integer;
+		action->num = 3;
+		action->run = &action_spawn;
+
+	} else if (strcmp(type->string, "destroy") == 0) {
+		action->args = NULL;
+		action->num = 0;
+		action->run = &action_destroy;
+
+	} else if (strcmp(type->string, "move") == 0) {
+		zpl_json_object* x = zpl_adt_query(json, "x");
+		if (x == NULL) return -1;
+		if (x->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		zpl_json_object* y = zpl_adt_query(json, "y");
+		if (y == NULL) return -1;
+		if (y->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		zpl_json_object* relative = zpl_adt_query(json, "relative");
+		if (relative == NULL) return -1;
+		if (relative->type != ZPL_ADT_TYPE_REAL) return -1;
+		action->args = malloc(3*sizeof(void*));
+		action->args[0] = malloc(sizeof(int));
+		*(int*)action->args[0] = x->integer;
+		action->args[1] = malloc(sizeof(int));
+		*(int*)action->args[1] = y->integer;
+		action->args[2] = malloc(sizeof(bool));
+		*(bool*)action->args[2] = relative->real;
+		action->num = 3;
+		action->run = &action_move;
+
+	} else if (strcmp(type->string, "speed") == 0) {
+		zpl_json_object* h = zpl_adt_query(json, "h");
+		if (h == NULL) return -1;
+		if (h->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		zpl_json_object* v = zpl_adt_query(json, "v");
+		if (v == NULL) return -1;
+		if (v->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		action->args = malloc(2*sizeof(void*));
+		action->args[0] = malloc(sizeof(int));
+		*(int*)action->args[0] = h->integer;
+		action->args[1] = malloc(sizeof(int));
+		*(int*)action->args[1] = v->integer;
+		action->num = 2;
+		action->run = &action_speed;
+
+	} else if (strcmp(type->string, "gravity") == 0) {
+		zpl_json_object* h = zpl_adt_query(json, "h");
+		if (h == NULL) return -1;
+		if (h->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		zpl_json_object* v = zpl_adt_query(json, "v");
+		if (v == NULL) return -1;
+		if (v->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		action->args = malloc(2*sizeof(void*));
+		action->args[0] = malloc(sizeof(int));
+		*(int*)action->args[0] = h->integer;
+		action->args[1] = malloc(sizeof(int));
+		*(int*)action->args[1] = v->integer;
+		action->num = 2;
+		action->run = &action_gravity;
+
+	} else if (strcmp(type->string, "sound") == 0) {
+		zpl_json_object* file = zpl_adt_query(json, "file");
+		if (file == NULL) return -1;
+		if (file->type != ZPL_ADT_TYPE_STRING) return -1;
+		action->args = malloc(1*sizeof(void*));
+		action->args[0] = malloc(sizeof(SDL_AudioSpec));
+		for (size_t i = 0; i < assets_num; i++) {
+			if (strcmp(assets[i].name, file->string) == 0) {
+				memcpy(action->args[0], assets[i].data, sizeof(SDL_AudioSpec));
+				break;
+			}
+			if (i == assets_num - 1) return -1;
+		}
+		action->num = 1;
+		action->run = &action_sound;
+
+	} else if (strcmp(type->string, "music") == 0) {
+		zpl_json_object* file = zpl_adt_query(json, "file");
+		if (file == NULL) return -1;
+		if (file->type != ZPL_ADT_TYPE_STRING) return -1;
+		action->args = malloc(1*sizeof(void*));
+		action->args[0] = malloc(sizeof(SDL_AudioSpec));
+		for (size_t i = 0; i < assets_num; i++) {
+			if (strcmp(assets[i].name, file->string) == 0) {
+				memcpy(action->args[0], assets[i].data, sizeof(SDL_AudioSpec));
+				break;
+			}
+			if (i == assets_num - 1) return -1;
+		}
+		action->num = 1;
+		action->run = &action_music;
+
+	} else if (strcmp(type->string, "close") == 0) {
+		action->args = NULL;
+		action->num = 0;
+		action->run = &action_close;
+
+	/*} else if (strcmp(type->string, "checkui") == 0) {
+		action->args = NULL;
+		action->num = 0;
+		action->run = &action_checkui;*/
+
+	} else {
+		SDL_Log("Invalid action type found");
+		return -1;
+	}
 	return 0;
 }
 
-/* Engine struct stores a 2D array. The first dimension is the different event types (LEAVE, CREATION etc).
- * The second dimension is dynamically sized and re-sized, and stores all the different actions that instances
- * have added.
- *
- * This function takes the context, event type, and the id of the calling instance, and will loop over
- * all the actions executing them based on the specifications provided by an object.
- */
-static void event_handler(Engine* engine, event_t ev, char* id) {
-	for (int i = 0; i < engine->events_num[ev]; i++) {
-		Action* action = engine->events[ev] + i;
-		//Special case: some events only trigger based on instance id
-		if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
-		    ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION) {
-			if (strcmp(action->id, id) != 0) continue;
-		}
-		const cJSON* type = J_GetObjectItemCaseSensitive(action->data, "type");
-		if (J_IsString(type) && (type->valuestring != NULL)) {
-			if (strcmp(type->valuestring, "spawn") == 0) {
-				const cJSON* object = J_GetObjectItemCaseSensitive(action->data, "object");
-				const cJSON* x = J_GetObjectItemCaseSensitive(action->data, "x");
-				const cJSON* y = J_GetObjectItemCaseSensitive(action->data, "y");
-				if (J_IsString(object) && (object->valuestring != NULL) && J_IsNumber(x) && J_IsNumber(y)) {
-					action_spawn(engine, object->valuestring, x->valueint, y->valueint);
-				}
-			} else if (strcmp(type->valuestring, "destroy") == 0) {
-				action_destroy(engine, action->id);
-			} else if (strcmp(type->valuestring, "move") == 0) {
-				const cJSON* x = J_GetObjectItemCaseSensitive(action->data, "x");
-				const cJSON* y = J_GetObjectItemCaseSensitive(action->data, "y");
-				const cJSON* relative = J_GetObjectItemCaseSensitive(action->data, "relative");
-				if (J_IsNumber(x) && J_IsNumber(y) && J_IsBool(relative)) {
-					action_move(engine, action->id, x->valueint, y->valueint, relative->valueint);
-				}
-			} else if (strcmp(type->valuestring, "speed") == 0) {
-				const cJSON* h = J_GetObjectItemCaseSensitive(action->data, "h");
-				const cJSON* v = J_GetObjectItemCaseSensitive(action->data, "v");
-				if (J_IsNumber(h) && J_IsNumber(v)) {
-					action_speed(engine, action->id, h->valueint, v->valueint);
-				}
-			} else if (strcmp(type->valuestring, "gravity") == 0) {
-				const cJSON* h = J_GetObjectItemCaseSensitive(action->data, "h");
-				const cJSON* v = J_GetObjectItemCaseSensitive(action->data, "v");
-				if (J_IsNumber(h) && J_IsNumber(v)) {
-					action_gravity(engine, h->valueint, v->valueint);
-				}
-			} else if (strcmp(type->valuestring, "sound") == 0) {
-				const cJSON* file = J_GetObjectItemCaseSensitive(action->data, "file");
-				if (J_IsString(file) && (file->valuestring != NULL)) {
-					action_sound(engine, file->valuestring);
-				}
-			} else if (strcmp(type->valuestring, "music") == 0) {
-				const cJSON* file = J_GetObjectItemCaseSensitive(action->data, "file");
-				if (J_IsString(file) && (file->valuestring != NULL)) {
-					action_music(engine, file->valuestring);
-				}
-			} else if (strcmp(type->valuestring, "close") == 0) {
-				action_close(engine);
-			} else if (strcmp(type->valuestring, "checkui") == 0) {
-				action_checkui(engine);
-			} else {
-				S_Log("Invalid action type found");
-			}
-		}
-	}
+int action_init(Action* action, zpl_json_object* json, Asset* assets, const size_t assets_num) {
+	if (action_handler(action, json, assets, assets_num) < 0) return -1;
+	return 0;
 }
 
+void action_cleanup(Action* action) {
+	for (int i = 0; i < action->num; i++) {
+		free(action->args[i]);
+	}
+	free(action->args);
+}

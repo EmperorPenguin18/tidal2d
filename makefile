@@ -4,13 +4,13 @@ else
 	OPTS = 
 endif
 
-COMMON = $(OPTS) -I./ -I/usr/local/include -Llib
+COMMON = $(OPTS) -lm -I./ -I/usr/local/include -Llib
 
 build: src/*.c
-	gcc -g -Og -o tidalpp src/*.c -D DEBUG -Wall $(COMMON)
+	gcc -g -Og -o tidalpp src/*.c src/*.S -D DEBUG -Wall $(COMMON)
 
 release: src/*.c
-	gcc -O3 -o tidalpp src/*.c $(COMMON)
+	gcc -O3 -o tidalpp src/*.c src/*.S $(COMMON)
 
 install: src/*.h tidalpp
 	mkdir -p /usr/include/tidal

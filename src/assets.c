@@ -3,27 +3,22 @@
 //https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
 
 #include "assets.h"
-#include "common.h"
-#include "sfx.h"
+//#include "sfx.h"
+#include "fonts.h"
+
+#include <SDL2/SDL.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <stb/stb_truetype.h>
 #define STB_VORBIS_IMPLEMENTATION
-#include <stb/stb_vorbis.h>
+#include <stb/stb_vorbis.c>
 
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
 #define NANOSVG_IMPLEMENTATION
+#define NANOSVGRAST_IMPLEMENTATION
 #include <nanosvg/nanosvgrast.h>
 
-#define ZPL_ENABLE_PARSER
-#include <zpl.h>
-
 static int bmp_create(void** out, void* in, const size_t len) {
-	SDL_Surface* surface = SDL_LoadBMP_RW(S_RWFromMem(in, len), 1);
+	SDL_Surface* surface = SDL_LoadBMP_RW(SDL_RWFromMem(in, len), 1);
 	if (!surface) return -1;
 	*out = surface;
 	return 0;
@@ -34,20 +29,34 @@ static void bmp_destroy(void* in) {
 }
 
 static int stb_create(void** out, void* in, const size_t len) {
-	int w, h, n;
-	unsigned char* data = stbi_load_from_memory(in, &w, &h, &n, 0);
-	if (!data) return -1;
-	SDL_Surface* surface = SDL_CreateRGBSurface(0, w, h, n*8, 0, 0, 0, 0);
-	if (!surface) return -1;
-	memcpy(surface->pixels, data);
-	stbi_image_free(data);
+	int w, h, format;
+	unsigned char* pixels = stbi_load_from_memory(in, len, &w, &h, &format, STBI_default);
+	if (!pixels) return -1;
 	SDL_free(in);
+	SDL_PixelFormatEnum sdlformat;
+	switch (format) {
+		case STBI_grey:
+			sdlformat = SDL_PIXELFORMAT_INDEX8;
+			break;
+		case STBI_rgb:
+			sdlformat = SDL_PIXELFORMAT_RGB24;
+			break;
+		case STBI_rgb_alpha:
+			sdlformat = SDL_PIXELFORMAT_RGBA32;
+			break;
+		default:
+			return -1;
+	}
+	SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(pixels, w, h, 8*format, w*format, sdlformat);
+	if (!surface) return -1;
 	*out = surface;
 	return 0;
 }
 
 static void stb_destroy(void* in) {
+	unsigned char* pixels = ((SDL_Surface*)in)->pixels;
 	SDL_FreeSurface(in);
+	stbi_image_free(pixels);
 }
 
 static int svg_create(void** out, void* in, const size_t len) {
@@ -67,27 +76,33 @@ static void svg_destroy(void* in) {
 }
 
 static int json_create(void** out, void* in, const size_t len) {
-	zpl_json_object root = malloc(sizeof(zpl_json_object));
-	zpl_json_parse(root, in, NULL);
-	if (!root) return -1;
-	SDL_free(in);
-	*out = root;
+	json* json = malloc(sizeof(json));
+	json->root = malloc(sizeof(zpl_json_object));
+	zpl_json_error err = zpl_json_parse(json->root, in, zpl_heap());
+	if (err != ZPL_JSON_ERROR_NONE && err != ZPL_JSON_ERROR_OBJECT_END_PAIR_MISMATCHED) {
+		SDL_Log("Json parse failed with: %d", err);
+		return -1;
+	}
+	json->raw = in;
+	*out = json;
 	return 0;
 }
 
 static void json_destroy(void* in) {
+	zpl_json_free(((json*)in)->root);
+	free(((json*)in)->root);
+	SDL_free(((json*)in)->raw);
 	free(in);
 }
 
 static int ttf_create(void** out, void* in, const size_t len) {
-	stbtt_fontinfo* info = malloc(sizeof(stbtt_fontinfo));
-	if (stbtt_InitFont(&info, in, 0) == 0) return -1;
-	*out = info;
+	*out = load_font(in, len);
+	if (*out == NULL) return -1;
 	return 0;
 }
 
 static void ttf_destroy(void* in) {
-	SDL_free(in->data);
+	SDL_free(((stbtt_fontinfo*)in)->data);
 	free(in);
 }
 
@@ -98,38 +113,34 @@ static int wav_create(void** out, void* in, const size_t len) {
 	spec = SDL_LoadWAV_RW(SDL_RWFromMem(in, len), 1, spec, &buffer, &size);
 	if (!spec) return -1;
 	spec->userdata = buffer;
+	spec->size = size;
 	SDL_free(in);
 	*out = spec;
 	return 0;
 }
 
 static void wav_destroy(void* in) {
-	SDL_FreeWAV(in->userdata);
+	SDL_FreeWAV(((SDL_AudioSpec*)in)->userdata);
 	free(in);
 }
 
 static int vorb_create(void** out, void* in, const size_t len) {
-	int error = 0;
-	stb_vorbis* vorbis = stb_vorbis_open_memory(in, len, &error, NULL);
-	if (error != 0) return -1;
-	stb_vorbis_info info = stb_vorbis_get_info(vorbis);
 	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
-	spec->freq = info.sample_rate;
-	spec->format = AUDIO_S16;
-	spec->channels = 2;
+	spec->format = AUDIO_S16SYS;
 	spec->samples = 1024;
-	spec->userdata = vorbis;
+	spec->size = stb_vorbis_decode_memory(in, len, (int*)&spec->channels, (int*)&spec->freq, (short**)&spec->userdata);
+	if (spec->size == -1) return -1;
 	SDL_free(in);
 	*out = spec;
 	return 0;
 }
 
 static void vorb_destroy(void* in) {
-	stb_vorbis_close(in->userdata);
+	free(((SDL_AudioSpec*)in)->userdata);
 	free(in);
 }
 
-static int sfx_create(void** out, void* in, const size_t len) {
+/*static int sfx_create(void** out, void* in, const size_t len) {
 	Sfx sfx;
 	if (load_sfx(&sfx, in) < 0) return -1;
 	SDL_free(in);
@@ -149,7 +160,7 @@ static int sfx_create(void** out, void* in, const size_t len) {
 
 static void sfx_destroy(void* in) {
 	free(in); //temp
-}
+}*/
 
 /* Based on extension given, sets the function pointers for an asset.
 */
@@ -179,20 +190,21 @@ static int type_handler(Asset* asset, const char* ext) {
 		asset->create = &sfx_create;
 		asset->destroy = &sfx_destroy;*/
 	} else {
-		fprintf(stderr, "Unsupported file type");
+		SDL_Log("Unsupported file type: %s", ext);
+		/* In the future maybe just skip the file instead of erroring? */
 		return -1;
 	}
 	return 0;
 }
 
-int asset_init(Asset* asset, const char* path, void* raw, const size_t len) {
-	asset->name = (char*)malloc(strlen(path)+1);
-	strcpy(asset->name, path);
-	if (type_handler(asset, getextension(path)) < 0) return -1;
+int asset_init(Asset* asset, const char* name, void* raw, const size_t len) {
+	asset->name = (char*)malloc(strlen(name)+1);
+	strcpy(asset->name, name);
+	if (type_handler(asset, getextension(name)) < 0) return -1;
 	if (asset->create(&asset->data, raw, len) < 0) return -1;
 	return 0;
 }
 
 void asset_cleanup(Asset* asset) {
-	asset->destroy(&asset->data);
+	asset->destroy(asset->data);
 }

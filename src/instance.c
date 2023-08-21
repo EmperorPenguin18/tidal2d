@@ -3,188 +3,147 @@
 //https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
 
 #include "instance.h"
+#include "actions.h"
+#include "assets.h"
 
-int instantiate() {
-	cJSON* json = NULL;
-	for (size_t i = 0; i < engine->objects_num; i++) {
-		if (strcmp(name, engine->objects[i].name) == 0) {
-			json = engine->objects[i].data;
-			break;
-		}
-	}
+#include <zpl.h>
 
-	engine->instances = (Instance*)realloc(engine->instances, (engine->instances_num+1)*sizeof(Instance));
-	const cJSON* layer = J_GetObjectItemCaseSensitive(json, "layer");
-	int num = 0;
-	if (J_IsNumber(layer)) num = layer->valueint;
-	//If the specified layer is higher than the highest, fill them all out
-	if (num+1 > engine->layers_num) {
-		engine->layers = (size_t*)realloc(engine->layers, (num+1)*sizeof(size_t));
-		for (size_t i = engine->layers_num; i < num+1; i++) engine->layers[i] = 0;
-		engine->layers_num = num+1;
+/* Instantiate an object. Currently quite complex because all the processing
+ * of JSON and assigning resources happens in this function. Also has to sort out the
+ * layers each time. Will probably eventually be a performance bottleneck. Should add
+ * more error messages to inform developer there object is malformed.
+ */
+int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t assets_num, Instance* instance, size_t* l) {
+	json* data = asset->data;
+	zpl_json_object* json = data->root;
+	instance->name = asset->name;
+	instance->id = NULL;
+	zpl_json_object* layer = zpl_adt_query(json, "layer");
+	if (layer == NULL) { //Layer is optional
+		instance->layer = SIZE_MAX;
+	} else {
+		if (layer->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		instance->layer = layer->integer;
 	}
-	int sum = 0;
-	//Get the spot where the new instance will slot in
-	for (size_t i = 0; i < num; i++) sum += engine->layers[i];
-	engine->layers[num]++;
-	engine->instances_num++;
-	//Make a spot in the array
-	for (size_t i = engine->instances_num - 1; i > sum; i--) engine->instances[i] = engine->instances[i - 1];
-	engine->instances[sum].id = gen_uuid();
-	engine->instances[sum].layer = num; //Store layer for later
+	*l = instance->layer;
 	
-	engine->instances[sum].dst.x = x;
-	engine->instances[sum].dst.y = y;
-	const cJSON* width = J_GetObjectItemCaseSensitive(json, "width");
-	if (J_IsNumber(width)) {
-		engine->instances[sum].dst.w = width->valueint;
-	} else engine->instances[sum].dst.w = 0;
-	const cJSON* height = J_GetObjectItemCaseSensitive(json, "height");
-	if (J_IsNumber(height)) {
-		engine->instances[sum].dst.h = height->valueint;
-	} else engine->instances[sum].dst.h = 0;
+	instance->dst.x = 0;
+	instance->dst.y = 0;
+	zpl_json_object* width = zpl_adt_query(json, "width");
+	if (width == NULL) { //Width is optional
+		instance->dst.w = 0;
+	} else {
+		if (width->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		instance->dst.w = width->integer;
+	}
+	zpl_json_object* height = zpl_adt_query(json, "height");
+	if (height == NULL) { //Height is optional
+		instance->dst.h = 0;
+	} else {
+		if (height->type != ZPL_ADT_TYPE_INTEGER) return -1;
+		instance->dst.h = height->integer;
+	}
 	
-	engine->instances[sum].texture = NULL;
-	const cJSON* sprite = J_GetObjectItemCaseSensitive(json, "sprite");
-	if (J_IsString(sprite) && (sprite->valuestring != NULL)) {
-		for (size_t i = 0; i < engine->textures_num; i++) {
-			if (strcmp(engine->textures[i].name, sprite->valuestring) == 0) {
-				engine->instances[sum].texture = engine->textures[i].data;
+	zpl_json_object* sprite = zpl_adt_query(json, "sprite");
+	if (sprite == NULL) { //Sprite is optional
+		instance->texture = NULL;
+	} else {
+		if (sprite->type != ZPL_ADT_TYPE_STRING) return -1;
+		//Don't have to check extension because texture
+		//creation will fail if it's wrong
+		for (size_t i = 0; i < assets_num; i++) {
+			/* Not super efficient having a texture for each instance */
+			if (strcmp(assets[i].name, sprite->string) == 0) {
+				SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, assets[i].data);
+				if (texture == NULL) return -1;
+				instance->texture = texture;
+				break;
 			}
 		}
 	}
 
-	engine->instances[sum].font = NULL;
-	const cJSON* font = J_GetObjectItemCaseSensitive(json, "font");
-	if (J_IsString(font) && (font->valuestring != NULL)) {
-		for (size_t i = 0; i < engine->fonts_num; i++) {
-			if (strcmp(engine->fonts[i].name, font->valuestring) == 0) {
-				engine->instances[sum].font = engine->fonts + i;
+	zpl_json_object* font = zpl_adt_query(json, "font");
+	if (font == NULL) { //Font is optional
+		instance->font = NULL;
+	} else {
+		if (font->type != ZPL_ADT_TYPE_STRING) return -1;
+		if (strcmp(getextension(font->string), "ttf") != 0) return -1; // Better to fail early on this
+		for (size_t i = 0; i < assets_num; i++) {
+			if (strcmp(assets[i].name, font->string) == 0) {
+				instance->font = assets[i].data;
+				break;
 			}
 		}
 	}
 
-	engine->instances[sum].text = NULL;
-	const cJSON* text = J_GetObjectItemCaseSensitive(json, "text");
-	if (J_IsString(text) && (text->valuestring != NULL)) {
-		engine->instances[sum].text = text->valuestring;
+	zpl_json_object* text = zpl_adt_query(json, "text");
+	if (text == NULL) { //Text is optional
+		instance->text = NULL;
+	} else {
+		if (text->type != ZPL_ADT_TYPE_STRING) return -1;
+		instance->text = malloc(strlen(text->string)+1);
+		strcpy(instance->text, text->string);
 	}
 
-	engine->instances[sum].body = NULL;
-	engine->instances[sum].shape = NULL;
-	const cJSON* shape = J_GetObjectItemCaseSensitive(json, "shape");
-	if (J_IsString(shape) && (shape->valuestring != NULL)) {
-		if (strcmp(shape->valuestring, "box") == 0) { //set mass and friction dynamically
-			engine->instances[sum].body = C_SpaceAddBody(engine->space,
-				C_BodyNew(1, C_MomentForBox(1, engine->instances[sum].dst.w,
-				engine->instances[sum].dst.h)));
-			engine->instances[sum].shape = C_SpaceAddShape(engine->space,
-				C_BoxShapeNew(engine->instances[sum].body,
-				engine->instances[sum].dst.w, engine->instances[sum].dst.h, 0));
-			C_ShapeSetFriction(engine->instances[sum].shape, 0.7);
-		} else if (strcmp(shape->valuestring, "wall") == 0) {
-			engine->instances[sum].body = C_BodyNewStatic();
-			engine->instances[sum].shape = C_SpaceAddShape(engine->space,
-				C_BoxShapeNew(engine->instances[sum].body , engine->instances[sum].dst.w,
-					engine->instances[sum].dst.h, 0));
-			C_ShapeSetFriction(engine->instances[sum].shape, 1);
-		}//add other shapes
-		C_BodySetPosition(engine->instances[sum].body, cpv(engine->instances[sum].dst.x,
-			engine->instances[sum].dst.y));
-		C_ShapeSetUserData(engine->instances[sum].shape, engine->instances[sum].id);
-		C_ShapeSetCollisionType(engine->instances[sum].shape, 1);
-		C_SpaceReindexShape(engine->space, engine->instances[sum].shape);
+	instance->body = NULL;
+	instance->shape = NULL;
+	zpl_json_object* shape = zpl_adt_query(json, "shape");
+	if (shape == NULL) { //Shape is optional
+		instance->physics = PHYSICS_NONE;
+	} else {
+		if (shape->type != ZPL_ADT_TYPE_STRING) return -1;
+		if (strcmp(shape->string, "box") == 0) {
+			instance->physics = PHYSICS_BOX;
+		} else if (strcmp(shape->string, "wall") == 0) {
+			instance->physics = PHYSICS_STATIC;
+		} else {
+			return -1;
+		}
 	}
 
-	const cJSON* ui = J_GetObjectItemCaseSensitive(json, "ui");
-	if (J_IsTrue(ui)) {
-		init_ui(engine, sum);
+	for (size_t i = 0; i < EVENTS_NUM; i++) {
+		instance->actions[i] = NULL;
+		instance->actions_num[i] = 0;
 	}
-
-	const cJSON* events = J_GetObjectItemCaseSensitive(json, "events");
-	if (J_IsObject(events)) {
-		const cJSON* event = NULL;
-		cJSON_ArrayForEach(event, events) {
-			if (J_IsArray(event)) {
-				event_t ev = 0;
-				if (strcmp(event->string, "collision") == 0) {
-					ev = TIDAL_EVENT_COLLISION;
-				} else if (strcmp(event->string, "quit") == 0) {
-					ev = TIDAL_EVENT_QUIT;
-				} else if (strcmp(event->string, "key_w") == 0) {
-					ev = TIDAL_EVENT_KEYW;
-				} else if (strcmp(event->string, "key_a") == 0) {
-					ev = TIDAL_EVENT_KEYA;
-				} else if (strcmp(event->string, "key_s") == 0) {
-					ev = TIDAL_EVENT_KEYS;
-				} else if (strcmp(event->string, "key_d") == 0) {
-					ev = TIDAL_EVENT_KEYD;
-				} else if (strcmp(event->string, "key_space") == 0) {
-					ev = TIDAL_EVENT_KEYSPACE;
-				} else if (strcmp(event->string, "key_enter") == 0) {
-					ev = TIDAL_EVENT_KEYENTER;
-				} else if (strcmp(event->string, "mouse_left") == 0) {
-					ev = TIDAL_EVENT_MOUSELEFT;
-				} else if (strcmp(event->string, "mouse_right") == 0) {
-					ev = TIDAL_EVENT_MOUSERIGHT;
-				} else if (strcmp(event->string, "creation") == 0) {
-					ev = TIDAL_EVENT_CREATION;
-				} else if (strcmp(event->string, "destruction") == 0) {
-					ev = TIDAL_EVENT_DESTRUCTION;
-				} else if (strcmp(event->string, "check_ui") == 0) {
-					ev = TIDAL_EVENT_CHECKUI;
-				} else if (strcmp(event->string, "leave") == 0) {
-					ev = TIDAL_EVENT_LEAVE;
-				} else {
-					S_Log("Invalid event type found");
-					continue;
-				}
-				const cJSON* action = NULL;
-				cJSON_ArrayForEach(action, event) {
-					if (J_IsObject(action)) {
-						//init_action(engine, ev, action, engine->instances[sum].id);
-						Action* tmp = (Action*)realloc(engine->events[ev], (engine->events_num[ev]+1)*sizeof(Action));
-						if (tmp == NULL) return -1;
-						engine->events[ev] = tmp;
-						engine->events[ev][engine->events_num[ev]].data = action;
-						engine->events[ev][engine->events_num[ev]].id = id;
-						engine->events_num[ev]++;
-					}
-				}
-			} else {
-				S_Log("Invalid object structure found");
+	zpl_json_object* events = zpl_adt_query(json, "events");
+	if (events != NULL) { //Events is optional
+		if (events->type != ZPL_ADT_TYPE_OBJECT) return -1;
+		for (size_t i = 0; i < zpl_array_count(events->nodes); i++) {
+			if (events->nodes[i].type != ZPL_ADT_TYPE_ARRAY) {
+				SDL_Log("Event does not contain an array");
+				return -1;
+			}
+			event_t ev = str2ev(events->nodes[i].name);
+			if (ev == TIDAL_EVENT_ERR) {
+				SDL_Log("Invalid event type found");
+				return -1;
+			}
+			for (size_t j = 0; j < zpl_array_count(events->nodes[i].nodes); j++) {
+				if (events->nodes[i].nodes[j].type != ZPL_ADT_TYPE_OBJECT) return -1;
+				zpl_json_object* action = events->nodes[i].nodes + j;
+				Action* tmp = (Action*)realloc(instance->actions[ev], (instance->actions_num[ev]+1)*sizeof(Action));
+				if (tmp == NULL) return -1;
+				instance->actions[ev] = tmp;
+				if (action_init(instance->actions[ev]+instance->actions_num[ev], action, assets, assets_num) < 0) return -1;
+				instance->actions_num[ev]++;
 			}
 		}
 	}
 
-	const cJSON* layer = J_GetObjectItemCaseSensitive(engine->objects[engine->objects_num].data, "layer");
-	if (J_IsNumber(layer)) {
-		if (layer->valueint < engine->first_layer) {
-			engine->first_object = engine->objects + engine->objects_num;
-			engine->first_layer = layer->valueint;
-		}
-	}
 	return 0;
 }
 
-int instance_cleanup() {
-	Instance* instance = NULL;
-	size_t n;
-	for (n = 0; n < engine->instances_num; n++) {
-		if (strcmp(id, engine->instances[n].id) == 0) {
-			instance = engine->instances+n;
-			break;
-		}
+void instance_cleanup(Instance* instance) {
+	SDL_DestroyTexture(instance->texture);
+	if (instance->shape) {
+		cpShapeFree(instance->shape);
+		cpBodyFree(instance->body);
 	}
-
-	C_SpaceRemoveShape(engine->space, instance->shape);
-	C_SpaceRemoveBody(engine->space, instance->body);
-	C_ShapeFree(instance->shape);
-	C_BodyFree(instance->body);
-	free(instance->id);
-
-	for (size_t i = n; i < engine->instances_num-1; i++) engine->instances[i] = engine->instances[i + 1];
-	engine->instances_num -= 1;
-
-	engine->layers[instance->layer] -= 1;
+	for (size_t i = 0; i < EVENTS_NUM; i++) {
+		for (size_t j = 0; j < instance->actions_num[i]; j++) {
+			action_cleanup(instance->actions[i]+j);
+		}
+		free(instance->actions[i]);
+	}
+	if (instance->text) free(instance->text);
 }

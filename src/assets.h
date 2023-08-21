@@ -5,6 +5,10 @@
 #ifndef __ASSETS_H__
 #define __ASSETS_H__
 
+#include "common.h"
+
+#include <zpl.h>
+
 /* Asset definition. Name is the file name
  * which will be unique and data can be anything.
  * Also has two function pointers, which will be
@@ -17,5 +21,14 @@ struct Asset {
 	void (*destroy)(void*);
 };
 typedef struct Asset Asset;
+
+struct json {
+	zpl_json_object* root;
+	char* raw;
+};
+typedef struct json json;
+
+int asset_init(Asset*, const char*, void*, const size_t);
+void asset_cleanup(Asset*);
 
 #endif
