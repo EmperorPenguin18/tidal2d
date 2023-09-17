@@ -5,8 +5,7 @@
 #include "instance.h"
 #include "actions.h"
 #include "assets.h"
-
-#include <zpl.h>
+#include "zpl.h"
 
 /* Instantiate an object. Currently quite complex because all the processing
  * of JSON and assigning resources happens in this function. Also has to sort out the

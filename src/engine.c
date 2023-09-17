@@ -79,13 +79,17 @@ static int setup_env(Engine* e) {
 	time_t t;
 	srand((unsigned) time(&t));
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) return -1;
-#ifdef DEBUG
+#ifndef NDEBUG
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
 	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
 	if (!e->window) return -1;
+	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Number of render drivers: %d\n", SDL_GetNumRenderDrivers());
 	e->renderer = SDL_CreateRenderer(e->window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
 	if (!e->renderer) return -1;
+	SDL_RendererInfo info;
+	if (SDL_GetRendererInfo(e->renderer, &info) < 0) return -1;
+	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Render driver name: %s\n", info.name);
 	char* name;
 	SDL_AudioSpec spec;
 	if (SDL_GetDefaultAudioInfo(&name, &spec, 0) != 0) return -1;

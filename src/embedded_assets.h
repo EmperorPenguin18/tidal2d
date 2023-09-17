@@ -5,9 +5,7 @@
 #ifndef __EMBEDDED_ASSETS_H__
 #define __EMBEDDED_ASSETS_H__
 
-static unsigned char embedded_binary[] =
-{
-};
+static unsigned char embedded_binary[] = {0};
 /*static unsigned char embedded_key[] =
 {
 };

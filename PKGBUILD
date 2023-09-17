@@ -15,10 +15,13 @@ sha256sums=('14d92bb09c04c0bef9e9028244e70272e6d39cba764402b4e5981d83c5898f87')
 
 build () {
   cd "$srcdir/$pkgname-$pkgver"
-  make release
+  mkdir build
+  cd build
+  cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release
+  cmake --build .
 }
 
 package () {
   cd "$srcdir/$pkgname-$pkgver"
-  install -Dm755 tidalpp -t "$pkgdir/usr/bin"
+  cmake --build . --target install
 }

@@ -6,8 +6,7 @@
 #define __ASSETS_H__
 
 #include "common.h"
-
-#include <zpl.h>
+#include "zpl.h"
 
 /* Asset definition. Name is the file name
  * which will be unique and data can be anything.

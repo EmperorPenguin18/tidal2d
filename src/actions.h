@@ -11,8 +11,7 @@ typedef struct Action Action;
 #include "common.h"
 #include "engine.h"
 #include "instance.h"
-
-#include <zpl.h>
+#include "zpl.h"
 
 struct Action {
 	void** args;

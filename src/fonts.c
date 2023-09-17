@@ -5,7 +5,7 @@
 #include "fonts.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
-#include <stb/stb_truetype.h>
+#include <stb_truetype.h>
 
 stbtt_fontinfo* load_font(unsigned char* in, const size_t len) {
 	stbtt_fontinfo* font = malloc(sizeof(stbtt_fontinfo));

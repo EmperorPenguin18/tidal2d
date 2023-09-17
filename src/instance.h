@@ -14,7 +14,7 @@ typedef struct Instance Instance;
 
 #include <SDL2/SDL.h>
 #include <chipmunk/chipmunk.h>
-#include <stb/stb_truetype.h>
+#include <stb_truetype.h>
 
 enum physics_t {
 	PHYSICS_NONE,

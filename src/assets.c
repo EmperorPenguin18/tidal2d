@@ -9,13 +9,13 @@
 #include <SDL2/SDL.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
+#include <stb_image.h>
 #define STB_VORBIS_IMPLEMENTATION
-#include <stb/stb_vorbis.c>
+#include <stb_vorbis.c>
 
 #define NANOSVG_IMPLEMENTATION
 #define NANOSVGRAST_IMPLEMENTATION
-#include <nanosvg/nanosvgrast.h>
+#include <nanosvgrast.h>
 
 static int bmp_create(void** out, void* in, const size_t len) {
 	SDL_Surface* surface = SDL_LoadBMP_RW(SDL_RWFromMem(in, len), 1);
