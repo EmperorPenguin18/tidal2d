@@ -11,18 +11,10 @@ typedef struct Instance Instance;
 #include "common.h"
 #include "actions.h"
 #include "assets.h"
+#include "physics.h"
 
 #include <SDL2/SDL.h>
-#include <chipmunk/chipmunk.h>
 #include <stb_truetype.h>
-
-enum physics_t {
-	PHYSICS_NONE,
-	PHYSICS_BOX,
-	PHYSICS_STATIC,
-	PHYSICS_NUM
-};
-typedef enum physics_t physics_t;
 
 /* Instance definition. These are organized into layers
  * and looped over frequently. Could definitely use some
@@ -36,8 +28,7 @@ struct Instance {
 	stbtt_fontinfo* font;
 	char* text;
 	physics_t physics;
-	cpBody* body;
-	cpShape* shape;
+	PhysicsBody body;
 	size_t layer;
 	Action* actions[EVENTS_NUM];
 	size_t actions_num[EVENTS_NUM];

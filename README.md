@@ -4,14 +4,14 @@ Simple game engine
 ## Features
 - Developed on Linux, and should work on Windows
 - Uses SDL2 for cross-platform media capabilities
-- Physics engine using Chipmunk2d
+- Physics engine using Physac
 - Objects can be defined using plain test (Json)
 
 Features will be added to suit other projects I'm working on.
 
 ## Dependencies
 
-SDL2, Chipmunk, and Lua
+SDL2 and Lua
 
 ## Install
 Arch

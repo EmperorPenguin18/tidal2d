@@ -13,7 +13,6 @@ static Engine* engine_alloc() {
 	Engine* e = (Engine*)malloc(sizeof(Engine));
 	if (e == NULL) return NULL;
 	e->running = false;
-	e->space = NULL;
 	e->assets = NULL;
 	e->assets_num = 0;
 	e->instances = NULL;
@@ -24,14 +23,9 @@ static Engine* engine_alloc() {
 	e->layers_num = 0;
 	e->first = NULL;
 	e->first_layer = SIZE_MAX;
-	/*e->ui = NULL;
-	e->ui_num = 0;
-	e->ui_texture = NULL;
-	e->ui_font = NULL;
-	e->ui_text = NULL;*/
-	e->col_hand = NULL;
 	e->audiodev = 0;
 	e->music = NULL;
+	e->phys_thread = NULL;
 	return e;
 }
 
@@ -61,20 +55,6 @@ static void event_handler(Engine* e, event_t ev, Instance* caller) {
 	}
 }
 
-static void postStep(cpSpace *space, cpShape *shape, void *data) {
-	event_handler(data, TIDAL_EVENT_COLLISION, cpShapeGetUserData(shape));
-}
-
-/* Part of how Chipmunk2D handles collisions. Is called every time two things collide.
- * Triggers an event for each body colliding.
- */
-static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
-	CP_ARBITER_GET_SHAPES(arb, a, b);
-	cpSpaceAddPostStepCallback(space, (cpPostStepFunc)postStep, a, data);
-	cpSpaceAddPostStepCallback(space, (cpPostStepFunc)postStep, b, data);
-	return 0;
-}
-
 static int setup_env(Engine* e) {
 	time_t t;
 	srand((unsigned) time(&t));
@@ -85,6 +65,7 @@ static int setup_env(Engine* e) {
 #ifndef NDEBUG
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
+	SDL_LogSetPriority(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR);
 	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
 	if (!e->window) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create window failed: %s", SDL_GetError());
@@ -116,10 +97,7 @@ static int setup_env(Engine* e) {
 	}
 	SDL_PauseAudioDevice(e->audiodev, 0);
 	SDL_free(name);
-	e->space = cpSpaceNew();
-	e->col_hand = cpSpaceAddCollisionHandler(e->space, 1, 1);
-	e->col_hand->beginFunc = collisionCallback;
-	e->col_hand->userData = e; //Set the collision handler's user data to the context
+	if (physics_init(&e->phys_thread) < 0) return -1;
 	return 0;
 }
 
@@ -227,24 +205,14 @@ static Instance* instance_copy(Engine* e, const char* name, int x, int y) {
 	instance = e->instances + sum;
 
 	instance->id = gen_uuid();
-	/*instance->dst.x = x;
-	instance->dst.y = y;*/
 	if (instance->physics != PHYSICS_NONE) {
+		Vector2 pos = {x, y};
 		if (instance->physics == PHYSICS_BOX) {
-			instance->body = cpBodyNew(1, cpMomentForBox(1, instance->dst.w, instance->dst.h));
-			instance->shape = cpBoxShapeNew(instance->body, instance->dst.w, instance->dst.h, 0);
-			cpShapeSetFriction(instance->shape, 0.7);
-			cpSpaceAddBody(e->space, instance->body);
+			instance->body = CreatePhysicsBodyRectangle(pos, instance->dst.w, instance->dst.h, 1.0);
 		} else if (instance->physics == PHYSICS_STATIC) {
-			instance->body = cpBodyNew(1, cpMomentForBox(1, instance->dst.w, instance->dst.h));
-			instance->shape = cpBoxShapeNew(instance->body, instance->dst.w, instance->dst.h, 0);
-			cpShapeSetFriction(instance->shape, 1);
+			instance->body = CreatePhysicsBodyRectangle(pos, instance->dst.w, instance->dst.h, 1.0);
+			instance->body->enabled = false;
 		}
-		cpShapeSetUserData(instance->shape, instance);
-		cpShapeSetCollisionType(instance->shape, 1);
-		cpBodySetPosition(instance->body, cpv(x, y));
-		cpSpaceAddShape(e->space, instance->shape);
-		cpSpaceReindexShape(e->space, instance->shape);
 	}
 	return instance;
 }
@@ -258,13 +226,8 @@ static void instance_destroy(Engine* e, Instance* instance) {
 		}
 	}
 	free(instance->id);
-	if (instance->shape) {
-		cpSpaceRemoveShape(e->space, instance->shape);
-		if (cpBodyGetSpace(instance->body)) {
-			cpSpaceRemoveBody(e->space, instance->body);
-		}
-		cpShapeFree(instance->shape);
-		cpBodyFree(instance->body);
+	if (instance->body) {
+		DestroyPhysicsBody(instance->body); instance->body = NULL;
 	}
 	for (size_t i = n; i < e->instances_num-1; i++) e->instances[i] = e->instances[i + 1];
 	e->instances_num -= 1;
@@ -376,15 +339,25 @@ static void update(Engine* e) {
 			SDL_Rect* dst = &(e->instances[i].dst);
 			int w, h;
 			SDL_GetWindowSize(e->window, &w, &h);
-			cpVect pos = cpBodyGetPosition(e->instances[i].body);
+			Vector2 pos = e->instances[i].body->position;
 			if ( (dst->x < w && pos.x > w) || (dst->x > 0-dst->w && pos.x < 0-dst->w) || (dst->y < h && pos.y > h) || (dst->y > 0-dst->h && pos.y < 0-dst->h) ) {
 				event_handler(e, TIDAL_EVENT_LEAVE, e->instances+i);
 			}
+			/*for (size_t j = 0; i < e->instances_num; j++) {
+				if (i == j) continue;
+				if (!e->instances[j].body) continue;
+				SDL_Rect* dst2 = &(e->instances[j].dst);
+				SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Checking collision: %d %d %d %d %d %d %d %d\n",
+						dst->x, dst->y, dst->w, dst->h, dst2->x, dst2->y, dst2->w, dst2->h);
+				if (SDL_HasIntersection(dst, dst2)) {
+					event_handler(e, TIDAL_EVENT_COLLISION, e->instances+i);
+					break;
+				}
+			}*/
 			dst->x = pos.x;
 			dst->y = pos.y;
 		}
 	}
-	cpSpaceStep(e->space, 1.0/60.0);
 }
 
 /* Loop over every texture, including text, and render them with SDL. */
@@ -448,9 +421,7 @@ void engine_cleanup(Engine* e) {
 	}
 	free(e->inert_ins); e->inert_ins = NULL;
 	free(e->layers); e->layers = NULL;
-	/*SDL_DestroyTexture(engine->ui_texture);
-	free(engine->ui); engine->ui = NULL;*/
-	cpSpaceFree(e->space); e->space = NULL;
+	physics_close(e->phys_thread);
 	SDL_CloseAudioDevice(e->audiodev);
 	SDL_DestroyRenderer(e->renderer); e->renderer = NULL;
 	SDL_DestroyWindow(e->window); e->window = NULL;

@@ -7,18 +7,14 @@ message(STATUS "Static build: ${STATIC}")
 if (STATIC)
 	set(BUILD_SHARED_LIBS OFF)
 	set(BUILD_STATIC_LIBS ON)
-	set(BUILD_SHARED OFF CACHE BOOL "Don't build shared")
-	set(BUILD_STATIC ON CACHE BOOL "Build static")
 else()
 	set(BUILD_SHARED_LIBS ON)
 	set(BUILD_STATIC_LIBS OFF)
-	set(BUILD_SHARED ON CACHE BOOL "Don't build shared")
-	set(BUILD_STATIC OFF CACHE BOOL "Build static")
 endif()
 
 add_executable(tidalpp)
 
-target_sources(tidalpp PRIVATE src/actions.c src/assets.c src/common.c src/engine.c src/filesystem.c src/fonts.c src/instance.c src/main.c src/zpl.c)
+target_sources(tidalpp PRIVATE src/actions.c src/assets.c src/common.c src/engine.c src/filesystem.c src/fonts.c src/instance.c src/main.c src/physics.c src/zpl.c)
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 set(CMAKE_CXX_FLAGS_DEBUG_INIT "-Wall")
@@ -74,41 +70,27 @@ else()
 	endif()
 endif()
 
-# Chipmunk2D dependency
+# Physac dependency
 find_path(
-	CHIPMUNK_INCLUDE_DIR
-	NAMES "chipmunk.h"
-	PATHS "/usr/include/chipmunk"
+	PHYSAC_INCLUDE_DIR
+	NAMES "physac.h"
+	PATHS "/usr/include"
 )
-message(STATUS "${CHIPMUNK_INCLUDE_DIR}")
-find_library(CHIPMUNK_LIB "chipmunk" "/usr/lib")
-message(STATUS "${CHIPMUNK_LIB}")
-if (CHIPMUNK_INCLUDE_DIR AND CHIPMUNK_LIB AND (NOT STATIC))
-	message(STATUS "Using system chipmunk lib")
+message(STATUS "${PHYSAC_INCLUDE_DIR}")
+if (PHYSAC_INCLUDE_DIR)
+	target_include_directories(tidalpp PRIVATE ${PHYSAC_INCLUDE_DIR})
 else()
 	FetchContent_Declare(
-		chipmunk
-		GIT_REPOSITORY https://github.com/slembcke/Chipmunk2D
-		GIT_TAG 87340c216bf97554dc552371bbdecf283f7c540e # 7.0.3
+		physac
+		GIT_REPOSITORY https://github.com/victorfisac/Physac
+		GIT_TAG 9f7d175437c053dbf380716bb8dfd878acb81d4a # Commit Jul 23 2022
 	)
-	FetchContent_GetProperties(chipmunk)
-	if(NOT chipmunk_POPULATED)
-		FetchContent_Populate(chipmunk)
-		file(READ "${chipmunk_SOURCE_DIR}/src/cpHastySpace.c" TEXT)
-		string(REPLACE "#include <sys/sysctl.h>" "" TEXT "${TEXT}")
-		file(WRITE "${chipmunk_SOURCE_DIR}/src/cpHastySpace.c" "${TEXT}")
-		set(BUILD_DEMOS OFF CACHE BOOL "Don't build demos")
-		add_subdirectory(${chipmunk_SOURCE_DIR} ${chipmunk_BINARY_DIR} EXCLUDE_FROM_ALL)
-		if (STATIC)
-			add_dependencies(tidalpp chipmunk_static)
-		else()
-			add_dependencies(tidalpp chipmunk)
-		endif()
-		target_include_directories(tidalpp PRIVATE "${chipmunk_SOURCE_DIR}/include")
-		target_link_directories(tidalpp PRIVATE "${chipmunk_BINARY_DIR}/src")
+	FetchContent_GetProperties(physac)
+	if(NOT physac_POPULATED)
+		FetchContent_Populate(physac)
+		target_include_directories(tidalpp PRIVATE "${physac_SOURCE_DIR}/src")
 	endif()
 endif()
-target_link_libraries(tidalpp PRIVATE chipmunk)
 
 # Stb dependency
 find_path(

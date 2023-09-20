@@ -8,9 +8,9 @@ url='https://github.com/EmperorPenguin18/tidalpp/'
 source=("https://github.com/EmperorPenguin18/$pkgname/archive/$pkgver.tar.gz")
 arch=('x86_64')
 license=('LGPL3')
-depends=('sdl2' 'chipmunk' 'stb' 'nanosvg' 'zpl' 'lua')
+depends=('sdl2' 'stb' 'nanosvg' 'zpl' 'lua')
 optdepends=('openssl' 'emscripten')
-makedepends=('clang' 'cmake')
+makedepends=('cmake')
 sha256sums=('14d92bb09c04c0bef9e9028244e70272e6d39cba764402b4e5981d83c5898f87')
 
 build () {

@@ -106,7 +106,6 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 	}
 
 	instance->body = NULL;
-	instance->shape = NULL;
 	zpl_json_object* shape = zpl_adt_query(json, "shape");
 	if (shape == NULL) { //Shape is optional
 		instance->physics = PHYSICS_NONE;
@@ -158,7 +157,7 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 				}
 				instance->actions[ev] = tmp;
 				if (action_init(instance->actions[ev]+instance->actions_num[ev], action, assets, assets_num) < 0) {
-					SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Action init failed");
+					SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Action init failed: %s", instance->name);
 					return -1;
 				}
 				instance->actions_num[ev]++;
@@ -171,10 +170,6 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 
 void instance_cleanup(Instance* instance) {
 	SDL_DestroyTexture(instance->texture);
-	if (instance->shape) {
-		cpShapeFree(instance->shape);
-		cpBodyFree(instance->body);
-	}
 	for (size_t i = 0; i < EVENTS_NUM; i++) {
 		for (size_t j = 0; j < instance->actions_num[i]; j++) {
 			action_cleanup(instance->actions[i]+j);
