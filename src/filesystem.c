@@ -21,7 +21,10 @@ char** list_files(size_t* num, const char* path) {
 		zpl_dir_entry* e = dir.entries + i;
 		if (e->type == ZPL_DIR_TYPE_FILE) {
 			char** tmp = realloc(out, (*num+1)*sizeof(char*));
-			if (!tmp) return NULL;
+			if (!tmp) {
+				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Out of memory");
+				return NULL;
+			}
 			out = tmp;
 			out[*num] = (char*)malloc(strlen(e->filename)+1);
 			strcpy(out[*num], e->filename);

@@ -49,7 +49,6 @@ struct Engine {
 Engine* engine_init(int, char*[]);
 void engine_run(Engine*);
 void engine_cleanup(Engine*);
-void engine_error();
 void action_spawn(Engine*, Instance*, void**);
 void action_destroy(Engine*, Instance*, void**);
 

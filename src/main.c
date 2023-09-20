@@ -8,7 +8,6 @@
 int main(int argc, char *argv[]) {
 	Engine* e = engine_init(argc, argv);
 	if (e == NULL) {
-		engine_error();
 		return 1;
 	}
 	engine_run(e);
