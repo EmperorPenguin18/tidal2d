@@ -4,6 +4,9 @@
 
 #include "common.h"
 
+#include <SDL2/SDL.h>
+#include <stdarg.h>
+
 const char* getextension(const char* filename) {
 	const char *dot = strrchr(filename, '.');
 	if (!dot || dot == filename) return "";
@@ -84,4 +87,12 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_LEAVE;
 	}
 	return TIDAL_EVENT_ERR;
+}
+
+int ERROR(const char* format, ...) {
+	va_list arg;
+	va_start(arg, format);
+	SDL_LogError(SDL_LOG_CATEGORY_ERROR, format, arg);
+	va_end(arg);
+	return -1;
 }

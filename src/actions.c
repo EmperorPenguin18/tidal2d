@@ -47,56 +47,32 @@ static void action_close(Engine* e, Instance* instance, void* args[]) {
 
 static int action_handler(Action* action, zpl_json_object* json, Asset* assets, const size_t assets_num) {
 	zpl_json_object* type = zpl_adt_query(json, "type");
-	if (type == NULL) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Missing action type");
-		return -1;
-	}
-	if (type->type != ZPL_ADT_TYPE_STRING) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Action type isn't string");
-		return -1;
-	}
+	if (type == NULL) return ERROR("Missing action type");
+	if (type->type != ZPL_ADT_TYPE_STRING) return ERROR("Action type isn't string");
 
 	if (strcmp(type->string, "spawn") == 0) {
 		action->args = malloc(3*sizeof(void*));
 		zpl_json_object* object = zpl_adt_query(json, "object");
-		if (object == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Spawn action missing object");
-			return -1;
-		}
-		if (object->type != ZPL_ADT_TYPE_STRING) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Object name isn't string");
-			return -1;
-		}
+		if (object == NULL) return ERROR("Spawn action missing object");
+		if (object->type != ZPL_ADT_TYPE_STRING) return ERROR("Object name isn't string");
 		action->args[0] = malloc(strlen(object->string)+1);
 		strcpy(action->args[0], object->string);
 		zpl_json_object* x = zpl_adt_query(json, "x");
-		if (x == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Spawn action missing x");
-			return -1;
-		}
+		if (x == NULL) return ERROR("Spawn action missing x");
 		action->args[1] = malloc(sizeof(float));
 		if (x->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[1] = x->integer;
 		} else if (x->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[1] = x->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "X isn't number");
-			return -1;
-		}
+		} else return ERROR("X isn't number");
 		zpl_json_object* y = zpl_adt_query(json, "y");
-		if (y == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Spawn action missing y");
-			return -1;
-		}
+		if (y == NULL) return ERROR("Spawn action missing y");
 		action->args[2] = malloc(sizeof(float));
 		if (y->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[2] = y->integer;
 		} else if (y->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[2] = y->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Y isn't number");
-			return -1;
-		}
+		} else return ERROR("Y isn't number");
 		action->num = 3;
 		action->run = &action_spawn;
 
@@ -108,43 +84,26 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	} else if (strcmp(type->string, "move") == 0) {
 		action->args = malloc(3*sizeof(void*));
 		zpl_json_object* x = zpl_adt_query(json, "x");
-		if (x == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Move action missing x");
-			return -1;
-		}
+		if (x == NULL) return ERROR("Move action missing x");
 		action->args[0] = malloc(sizeof(float));
 		if (x->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[0] = x->integer;
 		} else if (x->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[0] = x->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "X isn't number");
-			return -1;
-		}
+		} else return ERROR("X isn't number");
 		zpl_json_object* y = zpl_adt_query(json, "y");
-		if (y == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Move action missing y");
-			return -1;
-		}
+		if (y == NULL) return ERROR("Move action missing y");
 		action->args[1] = malloc(sizeof(float));
 		if (y->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[1] = y->integer;
 		} else if (y->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[1] = y->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Y isn't number");
-			return -1;
-		}
+		} else return ERROR("Y isn't number");
 		zpl_json_object* relative = zpl_adt_query(json, "relative");
-		if (relative == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Move action missing relative");
-			return -1;
-		}
+		if (relative == NULL) return ERROR("Move action missing relative");
 		action->args[2] = malloc(sizeof(bool));
-		if (relative->props != ZPL_ADT_PROPS_TRUE && relative->props != ZPL_ADT_PROPS_FALSE) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Relative isn't bool");
-			return -1;
-		}
+		if (relative->props != ZPL_ADT_PROPS_TRUE && relative->props != ZPL_ADT_PROPS_FALSE)
+			return ERROR("Relative isn't bool");
 		*(bool*)action->args[2] = relative->real;
 		action->num = 3;
 		action->run = &action_move;
@@ -152,79 +111,49 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	} else if (strcmp(type->string, "speed") == 0) {
 		action->args = malloc(2*sizeof(void*));
 		zpl_json_object* h = zpl_adt_query(json, "h");
-		if (h == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Speed action missing h");
-			return -1;
-		}
+		if (h == NULL) return ERROR("Speed action missing h");
 		action->args[0] = malloc(sizeof(float));
 		if (h->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[0] = h->integer;
 		} else if (h->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[0] = h->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "H isn't number");
-			return -1;
-		}
+		} else return ERROR("H isn't number");
 		zpl_json_object* v = zpl_adt_query(json, "v");
-		if (v == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Speed action missing v");
-			return -1;
-		}
+		if (v == NULL) return ERROR("Speed action missing v");
 		action->args[1] = malloc(sizeof(float));
 		if (v->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[1] = v->integer;
 		} else if (v->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[1] = v->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "V isn't number");
-			return -1;
-		}
+		} else return ERROR("V isn't number");
 		action->num = 2;
 		action->run = &action_speed;
 
 	} else if (strcmp(type->string, "gravity") == 0) {
 		action->args = malloc(2*sizeof(void*));
 		zpl_json_object* h = zpl_adt_query(json, "h");
-		if (h == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Gravity action missing h");
-			return -1;
-		}
+		if (h == NULL) return ERROR("Gravity action missing h");
 		action->args[0] = malloc(sizeof(float));
 		if (h->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[0] = h->integer;
 		} else if (h->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[0] = h->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "H isn't number");
-			return -1;
-		}
+		} else return ERROR("H isn't number");
 		zpl_json_object* v = zpl_adt_query(json, "v");
-		if (v == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Gravity action missing v");
-			return -1;
-		}
+		if (v == NULL) return ERROR("Gravity action missing v");
 		action->args[1] = malloc(sizeof(float));
 		if (v->type == ZPL_ADT_TYPE_INTEGER) {
 			*(float*)action->args[1] = v->integer;
 		} else if (v->type == ZPL_ADT_TYPE_REAL) {
 			*(float*)action->args[1] = v->real;
-		} else {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "V isn't number");
-			return -1;
-		}
+		} else return ERROR("V isn't number");
 		action->num = 2;
 		action->run = &action_gravity;
 
 	} else if (strcmp(type->string, "sound") == 0) {
 		zpl_json_object* file = zpl_adt_query(json, "file");
-		if (file == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Sound action missing file");
-			return -1;
-		}
-		if (file->type != ZPL_ADT_TYPE_STRING) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "File isn't string");
-			return -1;
-		}
+		if (file == NULL) return ERROR("Sound action missing file");
+		if (file->type != ZPL_ADT_TYPE_STRING) return ERROR("File isn't string");
 		action->args = malloc(1*sizeof(void*));
 		action->args[0] = malloc(sizeof(SDL_AudioSpec));
 		for (size_t i = 0; i < assets_num; i++) {
@@ -232,24 +161,15 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 				memcpy(action->args[0], assets[i].data, sizeof(SDL_AudioSpec));
 				break;
 			}
-			if (i == assets_num - 1) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Sound file not found");
-				return -1;
-			}
+			if (i == assets_num - 1) return ERROR("Sound file not found");
 		}
 		action->num = 1;
 		action->run = &action_sound;
 
 	} else if (strcmp(type->string, "music") == 0) {
 		zpl_json_object* file = zpl_adt_query(json, "file");
-		if (file == NULL) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Music action missing file");
-			return -1;
-		}
-		if (file->type != ZPL_ADT_TYPE_STRING) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "File isn't string");
-			return -1;
-		}
+		if (file == NULL) return ERROR("Music action missing file");
+		if (file->type != ZPL_ADT_TYPE_STRING) return ERROR("File isn't string");
 		action->args = malloc(1*sizeof(void*));
 		action->args[0] = malloc(sizeof(SDL_AudioSpec));
 		for (size_t i = 0; i < assets_num; i++) {
@@ -257,10 +177,7 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 				memcpy(action->args[0], assets[i].data, sizeof(SDL_AudioSpec));
 				break;
 			}
-			if (i == assets_num - 1) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Music file not found");
-				return -1;
-			}
+			if (i == assets_num - 1) return ERROR("Music file not found");
 		}
 		action->num = 1;
 		action->run = &action_music;
@@ -275,18 +192,13 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		action->num = 0;
 		action->run = &action_checkui;*/
 
-	} else {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Invalid action type found");
-		return -1;
-	}
+	} else return ERROR("Invalid action type found");
 	return 0;
 }
 
 int action_init(Action* action, zpl_json_object* json, Asset* assets, const size_t assets_num) {
-	if (action_handler(action, json, assets, assets_num) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Action handler failed");
-		return -1;
-	}
+	if (action_handler(action, json, assets, assets_num) < 0)
+		return ERROR("Action handler failed");
 	return 0;
 }
 

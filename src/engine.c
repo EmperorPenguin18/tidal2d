@@ -3,9 +3,9 @@
 //https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
 
 #include "engine.h"
-#include "embedded_assets.h"
 #include "filesystem.h"
 #include "fonts.h"
+#include "embedded_assets.h"
 
 #include <time.h>
 
@@ -71,14 +71,14 @@ static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *dat
 static int setup_env(Engine* e) {
 	time_t t;
 	srand((unsigned) time(&t));
-	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "SDL init failed: %s", SDL_GetError());
-		return -1;
-	}
 #ifndef NDEBUG
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR);
+	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) < 0) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "SDL init failed: %s", SDL_GetError());
+		return -1;
+	}
 	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
 	if (!e->window) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create window failed: %s", SDL_GetError());
@@ -96,13 +96,18 @@ static int setup_env(Engine* e) {
 		return -1;
 	}
 	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Render driver name: %s", info.name);
+	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Number of audio devices: %d", SDL_GetNumAudioDevices(0));
 	char* name;
 	SDL_AudioSpec spec;
 	if (SDL_GetDefaultAudioInfo(&name, &spec, 0) != 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Get audio info failed: %s", SDL_GetError());
-		return -1;
+		if (SDL_GetAudioDeviceSpec(0, 0, &spec) != 0) {
+			spec.freq = 48000;
+			spec.format = AUDIO_S16SYS;
+			spec.samples = 2048;
+		}
+	} else {
+		SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio device name: %s", name);
 	}
-	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio device name: %s", name);
 	e->audiodev = SDL_OpenAudioDevice(name, 0, &spec, NULL, SDL_AUDIO_ALLOW_ANY_CHANGE);
 	if (!e->audiodev) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Open audio failed: %s", SDL_GetError());
@@ -125,14 +130,12 @@ static zpl_isize tar_callback(zpl_file* archive, zpl_tar_record* file, void* use
 
 	Engine* e = user_data;
 	Asset* tmp = (Asset*)realloc(e->assets, (e->assets_num+1)*sizeof(Asset));
-	if (!tmp) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Out of memory");
-		return -1;
-	}
+	if (!tmp) return ERROR("Out of memory");
 	e->assets = tmp;
 	zpl_isize size = 0;
-	if (asset_init(e->assets+e->assets_num+1, file->path,
-		zpl_file_stream_buf(archive, &size)+file->offset, file->length) < 0) {
+	void* bin = malloc(file->length);
+	memcpy(bin, zpl_file_stream_buf(archive, &size)+file->offset, file->length);
+	if (asset_init(e->assets+e->assets_num, basename(file->path), bin, file->length) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Asset init failed");
 		return -1;
 	}
@@ -412,26 +415,25 @@ static void draw(Engine* e) {
 /* The main game loop. Avoid including debug code in this function
  * or functions called by it, for performance reasons.
  */
-void engine_run(Engine* e) {
-	while (e->running) {
-		Uint64 start = SDL_GetPerformanceCounter();
-		events(e);
-		update(e);
-		draw(e);
-		if (SDL_GetQueuedAudioSize(e->audiodev) == 0) // Loop music
-			SDL_QueueAudio(e->audiodev, e->music->userdata, e->music->size);
+void engine_run(void* p) {
+	Engine* e = p;
+	Uint64 start = SDL_GetPerformanceCounter();
+	events(e);
+	update(e);
+	draw(e);
+	if (SDL_GetQueuedAudioSize(e->audiodev) == 0) // Loop music
+		SDL_QueueAudio(e->audiodev, e->music->userdata, e->music->size);
 #ifndef NDEBUG
-		Uint64 end = SDL_GetPerformanceCounter();
-		float elapsed = (end - start) / (float)SDL_GetPerformanceFrequency();
-		void** args = malloc(2*sizeof(void*));
-		args[0] = malloc(strlen("TIDAL_FPS")+1);
-		strcpy(args[0], "TIDAL_FPS");
-		args[1] = malloc(sizeof(float));
-		*(float*)args[1] = 1.0/elapsed;
-		action_setvar(e, NULL, args);
-		free(args[0]); free(args[1]); free(args);
+	Uint64 end = SDL_GetPerformanceCounter();
+	float elapsed = (end - start) / (float)SDL_GetPerformanceFrequency();
+	void** args = malloc(2*sizeof(void*));
+	args[0] = malloc(strlen("TIDAL_FPS")+1);
+	strcpy(args[0], "TIDAL_FPS");
+	args[1] = malloc(sizeof(float));
+	*(float*)args[1] = 1.0/elapsed;
+	action_setvar(e, NULL, args);
+	free(args[0]); free(args[1]); free(args);
 #endif
-	}
 }
 
 /* Free resources used by the engine. Could be cleaned up with

@@ -44,7 +44,7 @@ struct Engine {
 
 /* The functions that main() uses */
 Engine* engine_init(int, char*[]);
-void engine_run(Engine*);
+void engine_run(void*);
 void engine_cleanup(Engine*);
 void action_spawn(Engine*, Instance*, void**);
 void action_destroy(Engine*, Instance*, void**);

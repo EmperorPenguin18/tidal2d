@@ -37,5 +37,6 @@ const char* getextension(const char*);
 const char* basename(const char*);
 char* gen_uuid();
 event_t str2ev(const char*);
+int ERROR(const char*, ...);
 
 #endif
