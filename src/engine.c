@@ -26,6 +26,7 @@ static Engine* engine_alloc() {
 	e->first_layer = SIZE_MAX;
 	e->audiodev = 0;
 	e->music = NULL;
+	e->L = NULL;
 	return e;
 }
 
@@ -113,6 +114,8 @@ static int setup_env(Engine* e) {
 	cpCollisionHandler* col_hand = cpSpaceAddDefaultCollisionHandler(e->space);
 	col_hand->beginFunc = collisionCallback;
 	col_hand->userData = e; //Set the collision handler's user data to the context
+	e->L = luaL_newstate();
+	luaL_openlibs(e->L);
 	return 0;
 }
 
@@ -170,6 +173,7 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 					SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Asset init failed: %s", names[j]);
 					return -1;
 				}
+				if (strcmp(basename(names[j]), "hello.lua") == 0) luaL_dostring(e->L, (e->assets+e->assets_num+j)->data); //temporary
 				free(names[j]);
 			}
 			e->assets_num += num;
@@ -447,6 +451,7 @@ void engine_cleanup(Engine* e) {
 	}
 	free(e->inert_ins); e->inert_ins = NULL;
 	free(e->layers); e->layers = NULL;
+	lua_close(e->L);
 	cpSpaceFree(e->space); e->space = NULL;
 	SDL_CloseAudioDevice(e->audiodev);
 	SDL_DestroyRenderer(e->renderer); e->renderer = NULL;

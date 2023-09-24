@@ -9,6 +9,9 @@ if (STATIC)
 	set(BUILD_STATIC_LIBS ON)
 	set(BUILD_SHARED OFF CACHE BOOL "Don't build shared")
 	set(BUILD_STATIC ON CACHE BOOL "Build static")
+	if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+		set(CMAKE_EXE_LINKER_FLAGS "-static")
+	endif()
 else()
 	set(BUILD_SHARED_LIBS ON)
 	set(BUILD_STATIC_LIBS OFF)
@@ -56,7 +59,9 @@ else()
 		file(WRITE "${sdl_SOURCE_DIR}/src/video/x11/SDL_x11xinput2.h" "${TEXT}")
 		set(SDL_TEST OFF CACHE BOOL "Don't build test")
 		add_subdirectory(${sdl_SOURCE_DIR} ${sdl_BINARY_DIR} EXCLUDE_FROM_ALL)
-		if (NOT STATIC)
+		if (STATIC)
+			set_target_properties(SDL2-static PROPERTIES OUTPUT_NAME "SDL2")
+		else()
 			set_target_properties(SDL2 PROPERTIES OUTPUT_NAME "SDL2")
 		endif()
 		add_dependencies(tidalpp SDL2::SDL2)
@@ -150,11 +155,40 @@ else()
 	FetchContent_GetProperties(nanosvg)
 	if(NOT nanosvg_POPULATED)
 		FetchContent_Populate(nanosvg)
-		target_include_directories(tidalpp PRIVATE ${nanosvg_SOURCE_DIR})
+		target_include_directories(tidalpp PRIVATE "${nanosvg_SOURCE_DIR}/src")
 	endif()
 endif()
 
-#find_package(Lua REQUIRED)
+# Lua dependency
+find_path(
+	LUA_INCLUDE_DIR
+	NAMES "lua.h"
+	PATHS "/usr/include"
+)
+message(STATUS "${LUA_INCLUDE_DIR}")
+find_library(LUA_LIB "lua" "/usr/lib")
+message(STATUS "${LUA_LIB}")
+if (LUA_INCLUDE_DIR AND LUA_LIB AND (NOT STATIC))
+	message(STATUS "Using system Lua lib")
+else()
+	FetchContent_Declare(
+		lua
+		GIT_REPOSITORY https://github.com/walterschell/Lua
+		GIT_TAG 88246d621abf7b6fba9332f49229d507f020e450 # Commit Aug 8 2023
+	)
+	FetchContent_GetProperties(lua)
+	if(NOT lua_POPULATED)
+		FetchContent_Populate(lua)
+		add_subdirectory(${lua_SOURCE_DIR} ${lua_BINARY_DIR} EXCLUDE_FROM_ALL)
+		set_target_properties(lua_shared PROPERTIES OUTPUT_NAME "lua")
+		set_target_properties(lua_static PROPERTIES OUTPUT_NAME "lua")
+		add_dependencies(tidalpp Lua::Library)
+		target_include_directories(tidalpp PRIVATE "${lua_SOURCE_DIR}/lua-5.4.6/include")
+		target_link_directories(tidalpp PRIVATE "${lua_BINARY_DIR}/lua-5.4.6")
+	endif()
+endif()
+target_link_libraries(tidalpp PRIVATE lua)
+
 #find_package(Emscripten REQUIRED)
 
 install(TARGETS tidalpp DESTINATION bin)

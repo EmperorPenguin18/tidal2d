@@ -15,6 +15,9 @@ typedef struct Engine Engine;
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 #include <chipmunk/chipmunk.h>
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 /* The context struct. Keeps track of all state related
  * stuff, and asset arrays.
@@ -36,6 +39,7 @@ struct Engine {
 	size_t first_layer;
 	SDL_AudioDeviceID audiodev;
 	SDL_AudioSpec* music;
+	lua_State* L;
 };
 
 /* The functions that main() uses */

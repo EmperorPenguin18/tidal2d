@@ -181,6 +181,18 @@ static void sfx_destroy(void* in) {
 	free(in); //temp
 }*/
 
+static int lua_create(void** out, void* in, const size_t len) {
+	char* str = malloc(strlen(in)+1);
+	strcpy(str, in);
+	SDL_free(in);
+	*out = str;
+	return 0;
+}
+
+static void lua_destroy(void* in) {
+	free(in);
+}
+
 /* Based on extension given, sets the function pointers for an asset.
 */
 static int type_handler(Asset* asset, const char* ext) {
@@ -208,6 +220,9 @@ static int type_handler(Asset* asset, const char* ext) {
 	/*} else if (strcmp(ext, "sfx") == 0) {
 		asset->create = &sfx_create;
 		asset->destroy = &sfx_destroy;*/
+	} else if (strcmp(ext, "lua") == 0) {
+		asset->create = &lua_create;
+		asset->destroy = &lua_destroy;
 	} else {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Unsupported file type: %s", ext);
 		/* In the future maybe just skip the file instead of erroring? */
