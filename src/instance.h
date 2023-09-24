@@ -41,6 +41,7 @@ struct Instance {
 	size_t layer;
 	Action* actions[EVENTS_NUM];
 	size_t actions_num[EVENTS_NUM];
+	bool* colliding;
 };
 
 int instance_create(Asset*, SDL_Renderer*, Asset*, size_t, Instance*, size_t*);

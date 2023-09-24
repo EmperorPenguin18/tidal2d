@@ -6,24 +6,21 @@
 
 /* Do a Chipmunk "teleport". See action documentation */
 static void action_move(Engine* e, Instance* instance, void* args[]) {
-	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Move: %d %d %d\n", *(int*)args[0], *(int*)args[1], *(bool*)args[2]);
 	if (*(bool*)args[2]) {
 		cpVect v = cpBodyGetPosition(instance->body);
-		int rel_x = v.x + *(int*)args[0];
-		int rel_y = v.y + *(int*)args[1];
-		cpBodySetPosition(instance->body, cpv(rel_x, rel_y));
-	} else cpBodySetPosition(instance->body, cpv(*(int*)args[0], *(int*)args[1]));
-	cpSpaceReindexShape(e->space, instance->shape);
+		cpVect rel = cpvadd(v, cpv(*(float*)args[0], *(float*)args[1]));
+		cpBodySetPosition(instance->body, rel);
+	} else cpBodySetPosition(instance->body, cpv(*(float*)args[0], *(float*)args[1]));
 }
 
 /* Change a physics body velocity. See action documentation. */
 static void action_speed(Engine* e, Instance* instance, void* args[]) {
-	cpBodySetVelocity(instance->body, cpv(*(int*)args[0], *(int*)args[1]));
+	cpBodySetVelocity(instance->body, cpv(*(float*)args[0], *(float*)args[1]));
 }
 
 /* Set the space's gravity. See action documentation. */
 static void action_gravity(Engine* e, Instance* instance, void* args[]) {
-	cpSpaceSetGravity(e->space, cpv(*(int*)args[0], *(int*)args[1]));
+	cpSpaceSetGravity(e->space, cpv(*(float*)args[0], *(float*)args[1]));
 }
 
 /* Play audio once. See action documentation. */
@@ -60,6 +57,7 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	}
 
 	if (strcmp(type->string, "spawn") == 0) {
+		action->args = malloc(3*sizeof(void*));
 		zpl_json_object* object = zpl_adt_query(json, "object");
 		if (object == NULL) {
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Spawn action missing object");
@@ -69,13 +67,20 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Object name isn't string");
 			return -1;
 		}
+		action->args[0] = malloc(strlen(object->string)+1);
+		strcpy(action->args[0], object->string);
 		zpl_json_object* x = zpl_adt_query(json, "x");
 		if (x == NULL) {
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Spawn action missing x");
 			return -1;
 		}
-		if (x->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "X isn't integer");
+		action->args[1] = malloc(sizeof(float));
+		if (x->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[1] = x->integer;
+		} else if (x->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[1] = x->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "X isn't number");
 			return -1;
 		}
 		zpl_json_object* y = zpl_adt_query(json, "y");
@@ -83,17 +88,15 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Spawn action missing y");
 			return -1;
 		}
-		if (y->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Y isn't integer");
+		action->args[2] = malloc(sizeof(float));
+		if (y->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[2] = y->integer;
+		} else if (y->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[2] = y->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Y isn't number");
 			return -1;
 		}
-		action->args = malloc(3*sizeof(void*));
-		action->args[0] = malloc(strlen(object->string)+1);
-		strcpy(action->args[0], object->string);
-		action->args[1] = malloc(sizeof(int));
-		*(int*)action->args[1] = x->integer;
-		action->args[2] = malloc(sizeof(int));
-		*(int*)action->args[2] = y->integer;
 		action->num = 3;
 		action->run = &action_spawn;
 
@@ -103,13 +106,19 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		action->run = &action_destroy;
 
 	} else if (strcmp(type->string, "move") == 0) {
+		action->args = malloc(3*sizeof(void*));
 		zpl_json_object* x = zpl_adt_query(json, "x");
 		if (x == NULL) {
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Move action missing x");
 			return -1;
 		}
-		if (x->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "X isn't integer");
+		action->args[0] = malloc(sizeof(float));
+		if (x->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[0] = x->integer;
+		} else if (x->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[0] = x->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "X isn't number");
 			return -1;
 		}
 		zpl_json_object* y = zpl_adt_query(json, "y");
@@ -117,8 +126,13 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Move action missing y");
 			return -1;
 		}
-		if (y->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Y isn't integer");
+		action->args[1] = malloc(sizeof(float));
+		if (y->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[1] = y->integer;
+		} else if (y->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[1] = y->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Y isn't number");
 			return -1;
 		}
 		zpl_json_object* relative = zpl_adt_query(json, "relative");
@@ -126,28 +140,29 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Move action missing relative");
 			return -1;
 		}
-		if (relative->type != ZPL_ADT_TYPE_REAL) {
+		action->args[2] = malloc(sizeof(bool));
+		if (relative->props != ZPL_ADT_PROPS_TRUE && relative->props != ZPL_ADT_PROPS_FALSE) {
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Relative isn't bool");
 			return -1;
 		}
-		action->args = malloc(3*sizeof(void*));
-		action->args[0] = malloc(sizeof(int));
-		*(int*)action->args[0] = x->integer;
-		action->args[1] = malloc(sizeof(int));
-		*(int*)action->args[1] = y->integer;
-		action->args[2] = malloc(sizeof(bool));
 		*(bool*)action->args[2] = relative->real;
 		action->num = 3;
 		action->run = &action_move;
 
 	} else if (strcmp(type->string, "speed") == 0) {
+		action->args = malloc(2*sizeof(void*));
 		zpl_json_object* h = zpl_adt_query(json, "h");
 		if (h == NULL) {
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Speed action missing h");
 			return -1;
 		}
-		if (h->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "H isn't integer");
+		action->args[0] = malloc(sizeof(float));
+		if (h->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[0] = h->integer;
+		} else if (h->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[0] = h->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "H isn't number");
 			return -1;
 		}
 		zpl_json_object* v = zpl_adt_query(json, "v");
@@ -155,26 +170,32 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Speed action missing v");
 			return -1;
 		}
-		if (v->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "V isn't integer");
+		action->args[1] = malloc(sizeof(float));
+		if (v->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[1] = v->integer;
+		} else if (v->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[1] = v->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "V isn't number");
 			return -1;
 		}
-		action->args = malloc(2*sizeof(void*));
-		action->args[0] = malloc(sizeof(int));
-		*(int*)action->args[0] = h->integer;
-		action->args[1] = malloc(sizeof(int));
-		*(int*)action->args[1] = v->integer;
 		action->num = 2;
 		action->run = &action_speed;
 
 	} else if (strcmp(type->string, "gravity") == 0) {
+		action->args = malloc(2*sizeof(void*));
 		zpl_json_object* h = zpl_adt_query(json, "h");
 		if (h == NULL) {
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Gravity action missing h");
 			return -1;
 		}
-		if (h->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "H isn't integer");
+		action->args[0] = malloc(sizeof(float));
+		if (h->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[0] = h->integer;
+		} else if (h->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[0] = h->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "H isn't number");
 			return -1;
 		}
 		zpl_json_object* v = zpl_adt_query(json, "v");
@@ -182,15 +203,15 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Gravity action missing v");
 			return -1;
 		}
-		if (v->type != ZPL_ADT_TYPE_INTEGER) {
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "V isn't integer");
+		action->args[1] = malloc(sizeof(float));
+		if (v->type == ZPL_ADT_TYPE_INTEGER) {
+			*(float*)action->args[1] = v->integer;
+		} else if (v->type == ZPL_ADT_TYPE_REAL) {
+			*(float*)action->args[1] = v->real;
+		} else {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "V isn't number");
 			return -1;
 		}
-		action->args = malloc(2*sizeof(void*));
-		action->args[0] = malloc(sizeof(int));
-		*(int*)action->args[0] = h->integer;
-		action->args[1] = malloc(sizeof(int));
-		*(int*)action->args[1] = v->integer;
 		action->num = 2;
 		action->run = &action_gravity;
 

@@ -34,13 +34,6 @@ struct Engine {
 	size_t layers_num;
 	char* first;
 	size_t first_layer;
-	/*Instance** ui;
-	size_t ui_num;
-	SDL_Rect ui_dst;
-	SDL_Texture* ui_texture;
-	FC_Font* ui_font;
-	const char* ui_text;*/
-	cpCollisionHandler* col_hand;
 	SDL_AudioDeviceID audiodev;
 	SDL_AudioSpec* music;
 };

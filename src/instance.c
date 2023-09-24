@@ -107,6 +107,7 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 
 	instance->body = NULL;
 	instance->shape = NULL;
+	instance->colliding = NULL;
 	zpl_json_object* shape = zpl_adt_query(json, "shape");
 	if (shape == NULL) { //Shape is optional
 		instance->physics = PHYSICS_NONE;
