@@ -13,8 +13,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: install dependencies
-      run: bash builddeps.sh
-    - name: make
-      run: make release
+    - name: make dir
+      run: mkdir build
+    - name: change dir
+      run: cd build
+    - name: configure
+      run: cmake .. -DCMAKE_BUILD_TYPE=Release
+    - name: build
+      run: cmake --build .
 

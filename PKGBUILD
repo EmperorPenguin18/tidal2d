@@ -8,15 +8,20 @@ url='https://github.com/EmperorPenguin18/tidalpp/'
 source=("https://github.com/EmperorPenguin18/$pkgname/archive/$pkgver.tar.gz")
 arch=('x86_64')
 license=('LGPL3')
-depends=('sdl2' 'physfs' 'cjson' 'chipmunk' 'sdl2_image' 'soloud' 'sdl2_fontcache' 'openssl')
-sha256sums=('d7e1b99a076f2b598c40a5971efd2032084a8bf5fe518a8471b9775da50b1687')
+depends=('sdl2' 'chipmunk' 'stb' 'nanosvg' 'lua')
+optdepends=('openssl' 'emscripten')
+makedepends=('cmake')
+sha256sums=('')
 
 build () {
   cd "$srcdir/$pkgname-$pkgver"
-  make release
+  mkdir build
+  cd build
+  cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release
+  cmake --build .
 }
 
 package () {
   cd "$srcdir/$pkgname-$pkgver"
-  install -Dm755 tidalpp -t "$pkgdir/usr/bin"
+  cmake --build . --target install
 }
