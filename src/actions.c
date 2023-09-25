@@ -1,6 +1,6 @@
-//Tidalpp by Sebastien MacDougall-Landry
+//Tidal2D by Sebastien MacDougall-Landry
 //License is available at
-//https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
+//https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include "actions.h"
 
@@ -45,6 +45,7 @@ static void action_close(Engine* e, Instance* instance, void* args[]) {
 	event_handler(engine, TIDAL_EVENT_CHECKUI);
 }*/
 
+/* Based on the type provided, setup args so calling an action is faster. */
 static int action_handler(Action* action, zpl_json_object* json, Asset* assets, const size_t assets_num) {
 	zpl_json_object* type = zpl_adt_query(json, "type");
 	if (type == NULL) return ERROR("Missing action type");
@@ -196,12 +197,14 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	return 0;
 }
 
+/* Initialize an Action struct. */
 int action_init(Action* action, zpl_json_object* json, Asset* assets, const size_t assets_num) {
 	if (action_handler(action, json, assets, assets_num) < 0)
 		return ERROR("Action handler failed");
 	return 0;
 }
 
+/* Cleanup an Action struct. */
 void action_cleanup(Action* action) {
 	for (int i = 0; i < action->num; i++) {
 		free(action->args[i]);

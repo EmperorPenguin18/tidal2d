@@ -1,6 +1,6 @@
-//Tidalpp by Sebastien MacDougall-Landry
+//Tidal2D by Sebastien MacDougall-Landry
 //License is available at
-//https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
+//https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include "engine.h"
 #include "filesystem.h"
@@ -30,13 +30,7 @@ static Engine* engine_alloc() {
 	return e;
 }
 
-/* Engine struct stores a 2D array. The first dimension is the different event types (LEAVE, CREATION etc).
- * The second dimension is dynamically sized and re-sized, and stores all the different actions that instances
- * have added.
- *
- * This function takes the context, event type, and the id of the calling instance, and will loop over
- * all the actions executing them based on the specifications provided by an object.
- */
+/* Loops over actions and runs them. */
 static void event_handler(Engine* e, event_t ev, Instance* caller) {
 	if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
 	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION) {
@@ -57,7 +51,7 @@ static void event_handler(Engine* e, event_t ev, Instance* caller) {
 }
 
 /* Part of how Chipmunk2D handles collisions. Is called every time two things collide.
- * Triggers an event for each body colliding.
+ * Will trigger an event for each body colliding.
  */
 static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
 	CP_ARBITER_GET_SHAPES(arb, a, b);
@@ -68,6 +62,7 @@ static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *dat
 	return 0;
 }
 
+/* Setup libraries */
 static int setup_env(Engine* e) {
 	time_t t;
 	srand((unsigned) time(&t));
@@ -124,6 +119,7 @@ static int setup_env(Engine* e) {
 	return 0;
 }
 
+/* Callback that is run for each file in a tar */
 static zpl_isize tar_callback(zpl_file* archive, zpl_tar_record* file, void* user_data) {
 	if (file->error != ZPL_TAR_ERROR_NONE || file->type != ZPL_TAR_TYPE_REGULAR)
 		return 0; /* skip file */
@@ -201,6 +197,7 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 	return 0;
 }
 
+/* Creates an instance that will actually show up in the world. Probably slow. */
 static Instance* instance_copy(Engine* e, const char* name, float x, float y) {
 	e->instances = (Instance*)realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
 	Instance* instance = NULL;
@@ -249,6 +246,7 @@ static Instance* instance_copy(Engine* e, const char* name, float x, float y) {
 	return instance;
 }
 
+/* Removes instance from world. Probably slow */
 static void instance_destroy(Engine* e, Instance* instance) {
 	size_t n = 0;
 	for (size_t i = 0; i < e->instances_num; i++) { /* Not super efficient */
@@ -273,22 +271,26 @@ static void instance_destroy(Engine* e, Instance* instance) {
 	e->layers[instance->layer] -= 1;
 }
 
+/* Move back to actions */
 void action_spawn(Engine* e, Instance* instance, void** args) {
 	Instance* new_ins = instance_copy(e, args[0], *(float*)args[1], *(float*)args[2]);
 	if (new_ins) event_handler(e, TIDAL_EVENT_CREATION, new_ins);
 }
 
 /* Free resources used by instance. See action documentation. */
+/* Move back to actions */
 void action_destroy(Engine* e, Instance* instance, void** args) {
 	event_handler(e, TIDAL_EVENT_DESTRUCTION, instance);
 	instance_destroy(e, instance);
 }
 
 /* Set a global variable to arbitray data. See action documentation. */
+/* Move back to actions */
 void action_setvar(Engine* e, Instance* instance, void* args[]) {
 	return;
 }
 
+/* Create all the objects, then spawn the first one. */
 static int spawn_level(Engine* e) {
 	for (size_t i = 0; i < e->assets_num; i++) {
 		if (strcmp(getextension(e->assets[i].name), "json") == 0) {
@@ -371,7 +373,7 @@ static void events(Engine* e) {
 	}
 }
 
-/* Update instance position based on physics. Could probably be combined with draw(). */
+/* Update instance position based on physics. Watch out for destroying instances in the loop. */
 static void update(Engine* e) {
 	for (size_t i = 0; i < e->instances_num; i++) {
 		if (e->instances[i].body != NULL) {

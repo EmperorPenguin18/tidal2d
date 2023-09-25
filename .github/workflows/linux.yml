@@ -1,4 +1,4 @@
-name: Emscripten CI
+name: Linux CI
 
 on:
   push:
@@ -13,12 +13,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: install compiler
-      run: |
-        sudo apt-get update
-        sudo apt-get install emscripten
     - name: configure
-      run: emcmake cmake -DCMAKE_BUILD_TYPE=Release
+      run: cmake -DCMAKE_BUILD_TYPE=Release
     - name: build
       run: cmake --build .
 

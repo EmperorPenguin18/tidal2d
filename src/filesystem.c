@@ -1,10 +1,11 @@
-//Tidalpp by Sebastien MacDougall-Landry
+//Tidal2D by Sebastien MacDougall-Landry
 //License is available at
-//https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
+//https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include "filesystem.h"
 #include "zpl.h"
 
+/* Checks if the path provided is a directory or a file. */
 int is_dir(const char* path) {
 	SDL_RWops* rw = SDL_RWFromFile(path, "rb+");
 	if (!rw) return 1;

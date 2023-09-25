@@ -1,0 +1,3 @@
+[submodule "docs"]
+	path = docs
+	url = https://github.com/EmperorPenguin18/tidal2d.wiki.git

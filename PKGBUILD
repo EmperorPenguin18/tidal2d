@@ -1,10 +1,10 @@
 # Maintainer: Sebastien MacDougall-Landry
 
-pkgname=tidalpp
-pkgver=0.2
+pkgname=tidal2d
+pkgver=0.3
 pkgrel=1
 pkgdesc='Simple game engine'
-url='https://github.com/EmperorPenguin18/tidalpp/'
+url='https://github.com/EmperorPenguin18/tidal2d/'
 source=("https://github.com/EmperorPenguin18/$pkgname/archive/$pkgver.tar.gz")
 arch=('x86_64')
 license=('LGPL3')
@@ -23,5 +23,6 @@ build () {
 
 package () {
   cd "$srcdir/$pkgname-$pkgver"
+  cd build
   cmake --build . --target install
 }

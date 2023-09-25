@@ -1,6 +1,6 @@
-//Tidalpp by Sebastien MacDougall-Landry
+//Tidal2D by Sebastien MacDougall-Landry
 //License is available at
-//https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
+//https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #ifndef __ENGINE_H__
 #define __ENGINE_H__

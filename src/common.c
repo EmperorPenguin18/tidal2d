@@ -1,6 +1,6 @@
-//Tidalpp by Sebastien MacDougall-Landry
+//Tidal2D by Sebastien MacDougall-Landry
 //License is available at
-//https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
+//https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include "common.h"
 
@@ -18,17 +18,6 @@ const char* basename(const char* filename) {
 	if (!dot || dot == filename) return "";
 	return dot + 1;
 }
-
-/* Get the number of digits in an int */
-/*static int findn(int num) {
-	if (num == 0) return 1;
-	int n = 0;
-	while (num) {
-		num /= 10;
-		n++;
-	}
-	return n;
-}*/
 
 /* UUIDs are used to identify an instance, because two instances
  * could be based on the same object.

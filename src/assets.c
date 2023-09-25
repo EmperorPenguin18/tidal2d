@@ -1,6 +1,6 @@
-//Tidalpp by Sebastien MacDougall-Landry
+//Tidal2D by Sebastien MacDougall-Landry
 //License is available at
-//https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
+//https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include "assets.h"
 //#include "sfx.h"
@@ -17,6 +17,7 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include <nanosvgrast.h>
 
+/* .bmp handler */
 static int bmp_create(void** out, void* in, const size_t len) {
 	SDL_Surface* surface = SDL_LoadBMP_RW(SDL_RWFromMem(in, len), 1);
 	if (!surface) {
@@ -31,6 +32,7 @@ static void bmp_destroy(void* in) {
 	SDL_FreeSurface(in);
 }
 
+/* .jpg and .png handler */
 static int stb_create(void** out, void* in, const size_t len) {
 	int w, h, format;
 	unsigned char* pixels = stbi_load_from_memory(in, len, &w, &h, &format, STBI_default);
@@ -69,6 +71,7 @@ static void stb_destroy(void* in) {
 	stbi_image_free(pixels);
 }
 
+/* .svg handler. Probably needs more error handling. */
 static int svg_create(void** out, void* in, const size_t len) {
 	NSVGimage* image = nsvgParse(in, "px", 96);
 	struct NSVGrasterizer* rast = nsvgCreateRasterizer();
@@ -85,6 +88,7 @@ static void svg_destroy(void* in) {
 	SDL_FreeSurface(in);
 }
 
+/* .json handler */
 static int json_create(void** out, void* in, const size_t len) {
 	json* json = malloc(sizeof(json));
 	json->root = malloc(sizeof(zpl_json_object));
@@ -105,6 +109,7 @@ static void json_destroy(void* in) {
 	free(in);
 }
 
+/* .ttf handler. Needs to be completely redone. */
 static int ttf_create(void** out, void* in, const size_t len) {
 	*out = load_font(in, len);
 	if (*out == NULL) {
@@ -119,6 +124,7 @@ static void ttf_destroy(void* in) {
 	free(in);
 }
 
+/* .wav handler */
 static int wav_create(void** out, void* in, const size_t len) {
 	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
 	Uint8* buffer;
@@ -140,6 +146,7 @@ static void wav_destroy(void* in) {
 	free(in);
 }
 
+/* .ogg handler. Slow */
 static int vorb_create(void** out, void* in, const size_t len) {
 	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
 	spec->format = AUDIO_S16SYS;
@@ -181,6 +188,7 @@ static void sfx_destroy(void* in) {
 	free(in); //temp
 }*/
 
+/* .lua handler. No work is really done */
 static int lua_create(void** out, void* in, const size_t len) {
 	char* str = malloc(strlen(in)+1);
 	strcpy(str, in);
@@ -193,8 +201,7 @@ static void lua_destroy(void* in) {
 	free(in);
 }
 
-/* Based on extension given, sets the function pointers for an asset.
-*/
+/* Based on extension given, sets the function pointers for an asset. */
 static int type_handler(Asset* asset, const char* ext) {
 	if (strcmp(ext, "bmp") == 0) {
 		asset->create = &bmp_create;
@@ -231,6 +238,7 @@ static int type_handler(Asset* asset, const char* ext) {
 	return 0;
 }
 
+/* Initialize Asset struct */
 int asset_init(Asset* asset, const char* name, void* raw, const size_t len) {
 	asset->name = (char*)malloc(strlen(name)+1);
 	strcpy(asset->name, name);
@@ -245,6 +253,7 @@ int asset_init(Asset* asset, const char* name, void* raw, const size_t len) {
 	return 0;
 }
 
+/* Cleanup Asset struct */
 void asset_cleanup(Asset* asset) {
 	asset->destroy(asset->data);
 }

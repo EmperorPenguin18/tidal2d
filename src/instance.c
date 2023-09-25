@@ -1,17 +1,13 @@
-//Tidalpp by Sebastien MacDougall-Landry
+//Tidal2D by Sebastien MacDougall-Landry
 //License is available at
-//https://github.com/EmperorPenguin18/tidalpp/blob/main/LICENSE
+//https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include "instance.h"
 #include "actions.h"
 #include "assets.h"
 #include "zpl.h"
 
-/* Instantiate an object. Currently quite complex because all the processing
- * of JSON and assigning resources happens in this function. Also has to sort out the
- * layers each time. Will probably eventually be a performance bottleneck. Should add
- * more error messages to inform developer there object is malformed.
- */
+/* Initialize Instance struct */
 int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t assets_num, Instance* instance, size_t* l) {
 	json* data = asset->data;
 	zpl_json_object* json = data->root;
@@ -25,6 +21,7 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Instance layer isn't integer");
 			return -1;
 		}
+		if (layer->integer < 0) return ERROR("Layer is less than 0");
 		instance->layer = layer->integer;
 	}
 	*l = instance->layer;
@@ -170,6 +167,7 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 	return 0;
 }
 
+/* Cleanup Instance struct */
 void instance_cleanup(Instance* instance) {
 	SDL_DestroyTexture(instance->texture);
 	if (instance->shape) {
