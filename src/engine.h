@@ -5,16 +5,8 @@
 #ifndef __ENGINE_H__
 #define __ENGINE_H__
 
-struct Engine;
-typedef struct Engine Engine;
-
-#include "common.h"
-#include "assets.h"
 #include "instance.h"
 
-#include <stdbool.h>
-#include <SDL2/SDL.h>
-#include <chipmunk/chipmunk.h>
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -40,13 +32,15 @@ struct Engine {
 	SDL_AudioDeviceID audiodev;
 	SDL_AudioSpec* music;
 	lua_State* L;
+	SDL_Rect win_rect;
 };
+typedef struct Engine Engine;
 
 /* The functions that main() uses */
 Engine* engine_init(int, char*[]);
 void engine_run(void*);
 void engine_cleanup(Engine*);
-void action_spawn(Engine*, Instance*, void**);
-void action_destroy(Engine*, Instance*, void**);
+void instance_copy(Engine*, const char*, float, float);
+void instance_destroy(Engine*, Instance*);
 
 #endif

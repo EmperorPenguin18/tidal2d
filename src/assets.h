@@ -5,8 +5,8 @@
 #ifndef __ASSETS_H__
 #define __ASSETS_H__
 
-#include "common.h"
 #include "zpl.h"
+#include "common.h"
 
 /* Asset definition. Name is the file name
  * which will be unique and data can be anything.

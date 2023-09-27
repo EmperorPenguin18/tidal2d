@@ -11,6 +11,7 @@ Simple game engine
 - Many different asset file formats can be loaded
 - Easy event-action system for object behaviour
 - Scripting in Lua for complete control
+- Graphical front-end with [tidal-gtk](https://github.com/EmperorPenguin18/tidal-gtk)
 
 Features will be added to suit other projects I'm working on.
 

@@ -15,9 +15,9 @@ sha256sums=('')
 
 build () {
   cd "$srcdir/$pkgname-$pkgver"
-  mkdir build
+  mkdir -p build
   cd build
-  cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release
+  cmake .. -DCMAKE_INSTALL_PREFIX=$pkgdir/usr -DCMAKE_BUILD_TYPE=Release
   cmake --build .
 }
 

@@ -3,7 +3,7 @@
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include "engine.h"
-#include <SDL2/SDL_main.h>
+#include <SDL_main.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif

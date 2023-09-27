@@ -5,7 +5,7 @@
 #ifndef __FONTS_H__
 #define __FONTS_H__
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <stb_truetype.h>
 
 stbtt_fontinfo* load_font(unsigned char*, const size_t);

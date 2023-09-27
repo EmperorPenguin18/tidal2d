@@ -5,9 +5,7 @@
 #ifndef __FILESYSTEM_H__
 #define __FILESYSTEM_H__
 
-#include "common.h"
-
-#include <SDL2/SDL.h>
+#include <stddef.h>
 
 int is_dir(const char*);
 char** list_files(size_t*, const char*);

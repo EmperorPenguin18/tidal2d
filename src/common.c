@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-#include <SDL2/SDL.h>
+#include <SDL_log.h>
 #include <stdarg.h>
 
 const char* getextension(const char* filename) {
@@ -43,39 +43,6 @@ char* gen_uuid() {
 	buf[36] = '\0';
 	
 	return buf;
-}
-
-event_t str2ev(const char* string) {
-	if (strcmp(string, "collision") == 0) {
-		return TIDAL_EVENT_COLLISION;
-	} else if (strcmp(string, "quit") == 0) {
-		return TIDAL_EVENT_QUIT;
-	} else if (strcmp(string, "key_w") == 0) {
-		return TIDAL_EVENT_KEYW;
-	} else if (strcmp(string, "key_a") == 0) {
-		return TIDAL_EVENT_KEYA;
-	} else if (strcmp(string, "key_s") == 0) {
-		return TIDAL_EVENT_KEYS;
-	} else if (strcmp(string, "key_d") == 0) {
-		return TIDAL_EVENT_KEYD;
-	} else if (strcmp(string, "key_space") == 0) {
-		return TIDAL_EVENT_KEYSPACE;
-	} else if (strcmp(string, "key_enter") == 0) {
-		return TIDAL_EVENT_KEYENTER;
-	} else if (strcmp(string, "mouse_left") == 0) {
-		return TIDAL_EVENT_MOUSELEFT;
-	} else if (strcmp(string, "mouse_right") == 0) {
-		return TIDAL_EVENT_MOUSERIGHT;
-	} else if (strcmp(string, "creation") == 0) {
-		return TIDAL_EVENT_CREATION;
-	} else if (strcmp(string, "destruction") == 0) {
-		return TIDAL_EVENT_DESTRUCTION;
-	} else if (strcmp(string, "check_ui") == 0) {
-		return TIDAL_EVENT_CHECKUI;
-	} else if (strcmp(string, "leave") == 0) {
-		return TIDAL_EVENT_LEAVE;
-	}
-	return TIDAL_EVENT_ERR;
 }
 
 int ERROR(const char* format, ...) {

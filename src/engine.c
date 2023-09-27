@@ -2,33 +2,15 @@
 //License is available at
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
-#include "engine.h"
-#include "filesystem.h"
-#include "fonts.h"
-#include "embedded_assets.h"
-
 #include <time.h>
 
-static Engine* engine_alloc() {
-	Engine* e = (Engine*)malloc(sizeof(Engine));
-	if (e == NULL) return NULL;
-	e->running = false;
-	e->space = NULL;
-	e->assets = NULL;
-	e->assets_num = 0;
-	e->instances = NULL;
-	e->instances_num = 0;
-	e->inert_ins = NULL;
-	e->inert_ins_num = 0;
-	e->layers = NULL;
-	e->layers_num = 0;
-	e->first = NULL;
-	e->first_layer = SIZE_MAX;
-	e->audiodev = 0;
-	e->music = NULL;
-	e->L = NULL;
-	return e;
-}
+#include "filesystem.h"
+#include "fonts.h"
+#include "events.h"
+#include "actions.h"
+#include "embedded_assets.h"
+
+#include "engine.h"
 
 /* Loops over actions and runs them. */
 static void event_handler(Engine* e, event_t ev, Instance* caller) {
@@ -70,26 +52,16 @@ static int setup_env(Engine* e) {
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR);
-	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "SDL init failed: %s", SDL_GetError());
-		return -1;
-	}
-	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, 0);
-	if (!e->window) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create window failed: %s", SDL_GetError());
-		return -1;
-	}
+	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) < 0) return ERROR("SDL init failed: %s", SDL_GetError());
+	e->win_rect.w = 640;
+	e->win_rect.h = 480;
+	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, e->win_rect.w, e->win_rect.h, 0);
+	if (!e->window) return ERROR("Create window failed: %s", SDL_GetError());
 	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Number of render drivers: %d", SDL_GetNumRenderDrivers());
 	e->renderer = SDL_CreateRenderer(e->window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
-	if (!e->renderer) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create renderer failed: %s", SDL_GetError());
-		return -1;
-	}
+	if (!e->renderer) return ERROR("Create renderer failed: %s", SDL_GetError());
 	SDL_RendererInfo info;
-	if (SDL_GetRendererInfo(e->renderer, &info) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Get renderer info failed: %s", SDL_GetError());
-		return -1;
-	}
+	if (SDL_GetRendererInfo(e->renderer, &info) < 0) return ERROR("Get renderer info failed: %s", SDL_GetError());
 	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Render driver name: %s", info.name);
 	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Number of audio devices: %d", SDL_GetNumAudioDevices(0));
 	char* name;
@@ -100,14 +72,9 @@ static int setup_env(Engine* e) {
 			spec.format = AUDIO_S16SYS;
 			spec.samples = 2048;
 		}
-	} else {
-		SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio device name: %s", name);
-	}
+	} else SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio device name: %s", name);
 	e->audiodev = SDL_OpenAudioDevice(name, 0, &spec, NULL, SDL_AUDIO_ALLOW_ANY_CHANGE);
-	if (!e->audiodev) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Open audio failed: %s", SDL_GetError());
-		return -1;
-	}
+	if (!e->audiodev) return ERROR("Open audio failed: %s", SDL_GetError());
 	SDL_PauseAudioDevice(e->audiodev, 0);
 	SDL_free(name);
 	e->space = cpSpaceNew();
@@ -131,10 +98,8 @@ static zpl_isize tar_callback(zpl_file* archive, zpl_tar_record* file, void* use
 	zpl_isize size = 0;
 	void* bin = malloc(file->length);
 	memcpy(bin, zpl_file_stream_buf(archive, &size)+file->offset, file->length);
-	if (asset_init(e->assets+e->assets_num, basename(file->path), bin, file->length) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Asset init failed");
-		return -1;
-	}
+	if (asset_init(e->assets+e->assets_num, basename(file->path), bin, file->length) < 0)
+		return ERROR("Asset init failed");
 	e->assets_num++;
 	return 0;
 }
@@ -151,28 +116,15 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 		if (is_dir(argv[i])) {
 			size_t num = 0;
 			char** names = list_files(&num, argv[i]);
-			if (!names) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "List files failed");
-				return -1;
-			}
+			if (!names) return ERROR("List files failed");
 			Asset* tmp = (Asset*)realloc(e->assets, (e->assets_num+num)*sizeof(Asset));
-			if (!tmp) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Out of memory");
-				return -1;
-			}
+			if (!tmp) return ERROR("Out of memory");
 			e->assets = tmp;
 			for (size_t j = 0; j < num; j++) {
 				size_t filesize = 0;
 				void* bin = SDL_LoadFile(names[j], &filesize);
-				if (!bin) {
-					SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load file failed: %s", SDL_GetError());
-					return -1;
-				}
-				if (asset_init(e->assets+e->assets_num+j, basename(names[j]), bin, filesize) < 0) {
-					SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Asset init failed: %s", names[j]);
-					return -1;
-				}
-				if (strcmp(basename(names[j]), "hello.lua") == 0) luaL_dostring(e->L, (e->assets+e->assets_num+j)->data); //temporary
+				if (!bin) return ERROR("Load file failed: %s", SDL_GetError());
+				if (asset_init(e->assets+e->assets_num+j, basename(names[j]), bin, filesize) < 0) return ERROR("Asset init failed: %s", names[j]);
 				free(names[j]);
 			}
 			e->assets_num += num;
@@ -183,14 +135,8 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 			e->assets = tmp;
 			size_t filesize = 0;
 			void* bin = SDL_LoadFile(argv[i], &filesize);
-			if (!bin) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load file failed: %s", SDL_GetError());
-				return -1;
-			}
-			if (asset_init(e->assets+e->assets_num, argv[i], bin, filesize) < 0) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Asset init failed: %s", argv[i]);
-				return -1;
-			}
+			if (!bin) return ERROR("Load file failed: %s", SDL_GetError());
+			if (asset_init(e->assets+e->assets_num, argv[i], bin, filesize) < 0) return ERROR("Asset init failed: %s", argv[i]);
 			e->assets_num++;
 		}
 	}
@@ -198,7 +144,7 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 }
 
 /* Creates an instance that will actually show up in the world. Probably slow. */
-static Instance* instance_copy(Engine* e, const char* name, float x, float y) {
+void instance_copy(Engine* e, const char* name, float x, float y) {
 	e->instances = (Instance*)realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
 	Instance* instance = NULL;
 	for (size_t i = 0; i < e->inert_ins_num; i++) { /* Not super efficient */
@@ -207,7 +153,7 @@ static Instance* instance_copy(Engine* e, const char* name, float x, float y) {
 			break;
 		}
 	}
-	if (!instance) return NULL;
+	if (!instance) return; // uh-oh
 
 	if (instance->layer+1 > e->layers_num) {//If the specified layer is higher than the highest, fill them all out
 		e->layers = (size_t*)realloc(e->layers, (instance->layer+1)*sizeof(size_t));
@@ -243,11 +189,14 @@ static Instance* instance_copy(Engine* e, const char* name, float x, float y) {
 		*(instance->colliding) = false;
 		cpShapeSetUserData(instance->shape, instance->colliding);
 	}
-	return instance;
+
+	event_handler(e, TIDAL_EVENT_CREATION, instance);
 }
 
 /* Removes instance from world. Probably slow */
-static void instance_destroy(Engine* e, Instance* instance) {
+void instance_destroy(Engine* e, Instance* instance) {
+	event_handler(e, TIDAL_EVENT_DESTRUCTION, instance);
+
 	size_t n = 0;
 	for (size_t i = 0; i < e->instances_num; i++) { /* Not super efficient */
 		if (strcmp(instance->id, e->instances[i].id) == 0) {
@@ -271,40 +220,16 @@ static void instance_destroy(Engine* e, Instance* instance) {
 	e->layers[instance->layer] -= 1;
 }
 
-/* Move back to actions */
-void action_spawn(Engine* e, Instance* instance, void** args) {
-	Instance* new_ins = instance_copy(e, args[0], *(float*)args[1], *(float*)args[2]);
-	if (new_ins) event_handler(e, TIDAL_EVENT_CREATION, new_ins);
-}
-
-/* Free resources used by instance. See action documentation. */
-/* Move back to actions */
-void action_destroy(Engine* e, Instance* instance, void** args) {
-	event_handler(e, TIDAL_EVENT_DESTRUCTION, instance);
-	instance_destroy(e, instance);
-}
-
-/* Set a global variable to arbitray data. See action documentation. */
-/* Move back to actions */
-void action_setvar(Engine* e, Instance* instance, void* args[]) {
-	return;
-}
-
 /* Create all the objects, then spawn the first one. */
 static int spawn_level(Engine* e) {
 	for (size_t i = 0; i < e->assets_num; i++) {
 		if (strcmp(getextension(e->assets[i].name), "json") == 0) {
 			Instance* tmp = (Instance*)realloc(e->inert_ins, (e->inert_ins_num+1)*sizeof(Instance));
-			if (!tmp) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Out of memory");
-				return -1;
-			}
+			if (!tmp) return ERROR("Out of memory");
 			e->inert_ins = tmp;
 			size_t layer = SIZE_MAX;
-			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->inert_ins+e->inert_ins_num, &layer) < 0) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Instance creation failed");
-				return -1;
-			}
+			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->inert_ins+e->inert_ins_num, &layer) < 0)
+				return ERROR("Instance creation failed");
 			if (layer < e->first_layer) {
 				e->first = e->inert_ins[e->inert_ins_num].name;
 				e->first_layer = layer;
@@ -313,8 +238,7 @@ static int spawn_level(Engine* e) {
 		}
 	}
 	if (e->first) {
-		Instance* new_ins = instance_copy(e, e->first, 0, 0);
-		event_handler(e, TIDAL_EVENT_CREATION, new_ins);
+		instance_copy(e, e->first, 0, 0);
 		e->running = true; //Something is actually in the game
 	}
 	return 0;
@@ -322,55 +246,14 @@ static int spawn_level(Engine* e) {
 
 /* Initializes the engine, in four parts */
 Engine* engine_init(int argc, char *argv[]) {
-	Engine* e = engine_alloc();
+	Engine* e = (Engine*)malloc(sizeof(Engine));
 	if (e == NULL) return NULL;
+	memset(e, 0, sizeof(Engine));
+	e->first_layer = SIZE_MAX;
 	if (setup_env(e) < 0) return NULL;
 	if (load_assets(e, argc, argv) < 0) return NULL;
 	if (spawn_level(e) < 0) return NULL;
 	return e;
-}
-
-/* Check for events from the player */
-static void events(Engine* e) {
-	SDL_Event event;
-	SDL_PollEvent(&event);
-	switch (event.type) {
-		case SDL_QUIT:
-			event_handler(e, TIDAL_EVENT_QUIT, NULL);
-			break;
-		case SDL_KEYDOWN:
-			switch (event.key.keysym.sym) {
-				case SDLK_w:
-					event_handler(e, TIDAL_EVENT_KEYW, NULL);
-					break;
-				case SDLK_a:
-					event_handler(e, TIDAL_EVENT_KEYA, NULL);
-					break;
-				case SDLK_s:
-					event_handler(e, TIDAL_EVENT_KEYS, NULL);
-					break;
-				case SDLK_d:
-					event_handler(e, TIDAL_EVENT_KEYD, NULL);
-					break;
-				case SDLK_SPACE:
-					event_handler(e, TIDAL_EVENT_KEYSPACE, NULL);
-					break;
-				case SDLK_RETURN:
-					event_handler(e, TIDAL_EVENT_KEYENTER, NULL);
-					break;
-			}
-			break;
-		case SDL_MOUSEBUTTONUP:
-			switch (event.button.button) {
-				case SDL_BUTTON_LEFT:
-					event_handler(e, TIDAL_EVENT_MOUSELEFT, NULL);
-					break;
-				case SDL_BUTTON_RIGHT:
-					event_handler(e, TIDAL_EVENT_MOUSERIGHT, NULL);
-					break;
-			}
-			break;
-	}
 }
 
 /* Update instance position based on physics. Watch out for destroying instances in the loop. */
@@ -378,15 +261,14 @@ static void update(Engine* e) {
 	for (size_t i = 0; i < e->instances_num; i++) {
 		if (e->instances[i].body != NULL) {
 			SDL_Rect* dst = &(e->instances[i].dst);
-			int w, h;
-			SDL_GetWindowSize(e->window, &w, &h);
 			cpVect pos = cpBodyGetPosition(e->instances[i].body);
-			if ( (dst->x < w && pos.x > w) || (dst->x > 0-dst->w && pos.x < 0-dst->w) || (dst->y < h && pos.y > h) || (dst->y > 0-dst->h && pos.y < 0-dst->h) ) {
+			SDL_Rect result;
+			dst->x = pos.x - dst->w/2;
+			dst->y = pos.y - dst->h/2;
+			if (!SDL_IntersectRect(&e->win_rect, dst, &result)) {
 				event_handler(e, TIDAL_EVENT_LEAVE, e->instances+i);
 				continue;
 			}
-			dst->x = pos.x - dst->w/2;
-			dst->y = pos.y - dst->h/2;
 			bool* colliding = e->instances[i].colliding;
 			if (*colliding) {
 				*colliding = false;
@@ -400,8 +282,10 @@ static void update(Engine* e) {
 /* Loop over every texture, including text, and render them with SDL. */
 static void draw(Engine* e) {
 	SDL_SetRenderDrawBlendMode(e->renderer, SDL_BLENDMODE_NONE);
-	SDL_SetRenderDrawColor(e->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
+	SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(e->renderer);
+	SDL_SetRenderDrawColor(e->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
+	SDL_RenderFillRect(e->renderer, &e->win_rect);
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances + i;
 		SDL_RenderCopy(e->renderer, instance->texture, NULL, &instance->dst);
@@ -420,7 +304,8 @@ static void draw(Engine* e) {
 void engine_run(void* p) {
 	Engine* e = p;
 	Uint64 start = SDL_GetPerformanceCounter();
-	events(e);
+	event_t ev = get_event();
+	if (ev != TIDAL_EVENT_ERR) event_handler(e, ev, NULL);
 	update(e);
 	draw(e);
 	if (SDL_GetQueuedAudioSize(e->audiodev) == 0) // Loop music
@@ -428,13 +313,12 @@ void engine_run(void* p) {
 #ifndef NDEBUG
 	Uint64 end = SDL_GetPerformanceCounter();
 	float elapsed = (end - start) / (float)SDL_GetPerformanceFrequency();
-	void** args = malloc(2*sizeof(void*));
-	args[0] = malloc(strlen("TIDAL_FPS")+1);
-	strcpy(args[0], "TIDAL_FPS");
-	args[1] = malloc(sizeof(float));
-	*(float*)args[1] = 1.0/elapsed;
-	action_setvar(e, NULL, args);
-	free(args[0]); free(args[1]); free(args);
+	float fps = 1.0/elapsed;
+	void* args = malloc(strlen("TIDAL_FPS")+1+sizeof(float));
+	strcpy(args, "TIDAL_FPS");
+	memcpy(args+strlen("TIDAL_FPS")+1, &fps, sizeof(float));
+	//action_setvar(e, NULL, args);
+	free(args);
 #endif
 }
 

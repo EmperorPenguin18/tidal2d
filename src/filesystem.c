@@ -2,8 +2,14 @@
 //License is available at
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
-#include "filesystem.h"
+#include <string.h>
+#include <stdlib.h>
+#include <SDL_rwops.h>
+
 #include "zpl.h"
+#include "common.h"
+
+#include "filesystem.h"
 
 /* Checks if the path provided is a directory or a file. */
 int is_dir(const char* path) {
@@ -23,7 +29,7 @@ char** list_files(size_t* num, const char* path) {
 		if (e->type == ZPL_DIR_TYPE_FILE) {
 			char** tmp = realloc(out, (*num+1)*sizeof(char*));
 			if (!tmp) {
-				SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Out of memory");
+				ERROR("Out of memory");
 				return NULL;
 			}
 			out = tmp;

@@ -2,12 +2,6 @@
 //License is available at
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
-#include "assets.h"
-//#include "sfx.h"
-#include "fonts.h"
-
-#include <SDL2/SDL.h>
-
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #define STB_VORBIS_IMPLEMENTATION
@@ -17,13 +11,15 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include <nanosvgrast.h>
 
+//#include "sfx.h"
+#include "fonts.h"
+
+#include "assets.h"
+
 /* .bmp handler */
 static int bmp_create(void** out, void* in, const size_t len) {
 	SDL_Surface* surface = SDL_LoadBMP_RW(SDL_RWFromMem(in, len), 1);
-	if (!surface) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load bmp failed: %s", SDL_GetError());
-		return -1;
-	}
+	if (!surface) return ERROR("Load bmp failed: %s", SDL_GetError());
 	*out = surface;
 	return 0;
 }
@@ -36,10 +32,7 @@ static void bmp_destroy(void* in) {
 static int stb_create(void** out, void* in, const size_t len) {
 	int w, h, format;
 	unsigned char* pixels = stbi_load_from_memory(in, len, &w, &h, &format, STBI_default);
-	if (!pixels) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load image failed");
-		return -1;
-	}
+	if (!pixels) return ERROR("Load image failed");
 	SDL_free(in);
 	SDL_PixelFormatEnum sdlformat;
 	switch (format) {
@@ -53,14 +46,10 @@ static int stb_create(void** out, void* in, const size_t len) {
 			sdlformat = SDL_PIXELFORMAT_RGBA32;
 			break;
 		default:
-			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Invalid pixel format");
-			return -1;
+			return ERROR("Invalid pixel format");
 	}
 	SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(pixels, w, h, 8*format, w*format, sdlformat);
-	if (!surface) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create surface failed: %s", SDL_GetError());
-		return -1;
-	}
+	if (!surface) return ERROR("Create surface failed: %s", SDL_GetError());
 	*out = surface;
 	return 0;
 }
@@ -93,29 +82,24 @@ static int json_create(void** out, void* in, const size_t len) {
 	json* json = malloc(sizeof(json));
 	json->root = malloc(sizeof(zpl_json_object));
 	zpl_json_error err = zpl_json_parse(json->root, in, zpl_heap());
-	if (err != ZPL_JSON_ERROR_NONE && err != ZPL_JSON_ERROR_OBJECT_END_PAIR_MISMATCHED) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Json parse failed with: %d", err);
-		return -1;
-	}
+	if (err != ZPL_JSON_ERROR_NONE && err != ZPL_JSON_ERROR_OBJECT_END_PAIR_MISMATCHED) return ERROR("Json parse failed with: %d", err);
 	json->raw = in;
 	*out = json;
 	return 0;
 }
 
 static void json_destroy(void* in) {
-	zpl_json_free(((json*)in)->root);
-	free(((json*)in)->root);
-	SDL_free(((json*)in)->raw);
-	free(in);
+	json* json = in;
+	zpl_json_free(json->root);
+	free(json->root);
+	SDL_free(json->raw);
+	free(json);
 }
 
 /* .ttf handler. Needs to be completely redone. */
 static int ttf_create(void** out, void* in, const size_t len) {
 	*out = load_font(in, len);
-	if (*out == NULL) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load font failed");
-		return -1;
-	}
+	if (*out == NULL) return ERROR("Load font failed");
 	return 0;
 }
 
@@ -130,10 +114,7 @@ static int wav_create(void** out, void* in, const size_t len) {
 	Uint8* buffer;
 	Uint32 size;
 	spec = SDL_LoadWAV_RW(SDL_RWFromMem(in, len), 1, spec, &buffer, &size);
-	if (!spec) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load wav failed: %s", SDL_GetError());
-		return -1;
-	}
+	if (!spec) return ERROR("Load wav failed: %s", SDL_GetError());
 	spec->userdata = buffer;
 	spec->size = size;
 	SDL_free(in);
@@ -152,10 +133,7 @@ static int vorb_create(void** out, void* in, const size_t len) {
 	spec->format = AUDIO_S16SYS;
 	spec->samples = 1024;
 	spec->size = stb_vorbis_decode_memory(in, len, (int*)&spec->channels, (int*)&spec->freq, (short**)&spec->userdata);
-	if (spec->size == -1) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load ogg failed");
-		return -1;
-	}
+	if (spec->size == -1) return ERROR("Load ogg failed");
 	SDL_free(in);
 	*out = spec;
 	return 0;
@@ -230,11 +208,8 @@ static int type_handler(Asset* asset, const char* ext) {
 	} else if (strcmp(ext, "lua") == 0) {
 		asset->create = &lua_create;
 		asset->destroy = &lua_destroy;
-	} else {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Unsupported file type: %s", ext);
-		/* In the future maybe just skip the file instead of erroring? */
-		return -1;
-	}
+	} else return ERROR("Unsupported file type: %s", ext);
+	/* In the future maybe just skip the file instead of erroring? */
 	return 0;
 }
 
@@ -242,14 +217,8 @@ static int type_handler(Asset* asset, const char* ext) {
 int asset_init(Asset* asset, const char* name, void* raw, const size_t len) {
 	asset->name = (char*)malloc(strlen(name)+1);
 	strcpy(asset->name, name);
-	if (type_handler(asset, getextension(name)) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Type handler failed");
-		return -1;
-	}
-	if (asset->create(&asset->data, raw, len) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Asset create failed");
-		return -1;
-	}
+	if (type_handler(asset, getextension(name)) < 0) return ERROR("Type handler failed");
+	if (asset->create(&asset->data, raw, len) < 0) return ERROR("Asset create failed");
 	return 0;
 }
 
