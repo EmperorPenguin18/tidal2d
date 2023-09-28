@@ -5,7 +5,7 @@
 #include <time.h>
 
 #include "filesystem.h"
-#include "fonts.h"
+#include "stbttf.h"
 #include "events.h"
 #include "actions.h"
 #include "embedded_assets.h"
@@ -281,17 +281,21 @@ static void update(Engine* e) {
 
 /* Loop over every texture, including text, and render them with SDL. */
 static void draw(Engine* e) {
-	SDL_SetRenderDrawBlendMode(e->renderer, SDL_BLENDMODE_NONE);
+	SDL_SetRenderDrawBlendMode(e->renderer, SDL_BLENDMODE_BLEND);
 	SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(e->renderer);
 	SDL_SetRenderDrawColor(e->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
 	SDL_RenderFillRect(e->renderer, &e->win_rect);
+	SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances + i;
 		SDL_RenderCopy(e->renderer, instance->texture, NULL, &instance->dst);
-		font_draw(e->renderer, instance->font, 28, instance->dst.x, instance->dst.y, instance->text);
+		if (instance->font) {
+			STBTTF_Font* font = STBTTF_OpenFontRW(e->renderer, SDL_RWFromConstMem(instance->font->data, instance->font->len), 28);
+			STBTTF_RenderText(e->renderer, font, instance->dst.x, instance->dst.y+28, instance->text);
+			STBTTF_CloseFont(font);
+		}
 #ifndef NDEBUG
-		SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 		SDL_RenderDrawRect(e->renderer, &instance->dst);
 #endif
 	}

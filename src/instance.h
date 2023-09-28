@@ -29,7 +29,7 @@ struct Instance {
 	char* id;
 	SDL_Rect dst;
 	SDL_Texture* texture;
-	void* font; //stbtt_fontinfo*
+	font* font;
 	char* text;
 	physics_t physics;
 	cpBody* body;

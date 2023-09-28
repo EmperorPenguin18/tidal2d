@@ -29,7 +29,7 @@ endif()
 
 add_executable(tidal2d)
 
-target_sources(tidal2d PRIVATE src/actions.c src/assets.c src/common.c src/engine.c src/events.c src/filesystem.c src/fonts.c src/instance.c src/main.c src/zpl.c)
+target_sources(tidal2d PRIVATE src/actions.c src/assets.c src/common.c src/engine.c src/events.c src/filesystem.c src/stbttf.c src/instance.c src/main.c src/zpl.c)
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 set(CMAKE_CXX_FLAGS_DEBUG_INIT "-Wall")

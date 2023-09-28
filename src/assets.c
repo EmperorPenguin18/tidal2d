@@ -12,7 +12,7 @@
 #include <nanosvgrast.h>
 
 //#include "sfx.h"
-#include "fonts.h"
+#include "stbttf.h"
 
 #include "assets.h"
 
@@ -96,15 +96,17 @@ static void json_destroy(void* in) {
 	free(json);
 }
 
-/* .ttf handler. Needs to be completely redone. */
+/* .ttf handler */
 static int ttf_create(void** out, void* in, const size_t len) {
-	*out = load_font(in, len);
-	if (*out == NULL) return ERROR("Load font failed");
+	font* font = malloc(sizeof(font));
+	font->data = in;
+	font->len = len;
+	*out = font;
 	return 0;
 }
 
 static void ttf_destroy(void* in) {
-	SDL_free(((stbtt_fontinfo*)in)->data);
+	SDL_free(((font*)in)->data);
 	free(in);
 }
 
@@ -168,10 +170,7 @@ static void sfx_destroy(void* in) {
 
 /* .lua handler. No work is really done */
 static int lua_create(void** out, void* in, const size_t len) {
-	char* str = malloc(strlen(in)+1);
-	strcpy(str, in);
-	SDL_free(in);
-	*out = str;
+	*out = in;
 	return 0;
 }
 

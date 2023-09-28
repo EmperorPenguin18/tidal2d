@@ -27,6 +27,12 @@ struct json {
 };
 typedef struct json json;
 
+struct font {
+	void* data;
+	size_t len;
+};
+typedef struct font font;
+
 int asset_init(Asset*, const char*, void*, const size_t);
 void asset_cleanup(Asset*);
 

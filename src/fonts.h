@@ -6,9 +6,16 @@
 #define __FONTS_H__
 
 #include <SDL.h>
+
 #include <stb_truetype.h>
 
-stbtt_fontinfo* load_font(unsigned char*, const size_t);
-void font_draw(SDL_Renderer*, stbtt_fontinfo*, float, int, int, char*);
+struct font_t {
+	SDL_Surface* surface;
+	stbtt_bakedchar* chars;
+};
+typedef struct font_t font_t;
+
+font_t* load_font(const unsigned char*, const size_t);
+void font_draw(SDL_Renderer*, font_t*, int, int, char*);
 
 #endif
