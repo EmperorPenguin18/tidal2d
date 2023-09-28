@@ -6,6 +6,44 @@
 
 #include "instance.h"
 
+static size_t generate_atlas(int** x, int** y, const int w, const int h, const int img_w, const int img_h) {
+	size_t frames = 0;
+	if (img_w > w && img_h > h) {
+		frames = ceil(img_w/w) * ceil(img_h/h);
+		*x = malloc(frames*sizeof(int));
+		*y = malloc(frames*sizeof(int));
+		for (size_t i = 0; i < frames/ceil(img_w/w); i++) {
+			for (size_t j = 0; j < frames/ceil(img_h/h); j++) {
+				(*x)[i+j] = j*w;
+				(*y)[i+j] = i*h;
+			}
+		}
+	} else if (img_w > w) {
+		frames = ceil(img_w/w);
+		*x = malloc(frames*sizeof(int));
+		*y = malloc(frames*sizeof(int));
+		for (size_t i = 0; i < frames; i++) {
+			(*x)[i] = i*w;
+			(*y)[i] = 0;
+		}
+	} else if (img_h > h) {
+		frames = ceil(img_h/h);
+		*x = malloc(frames*sizeof(int));
+		*y = malloc(frames*sizeof(int));
+		for (size_t i = 0; i < frames; i++) {
+			(*x)[i] = 0;
+			(*y)[i] = i*w;
+		}
+	} else {
+		frames = 1;
+		*x = malloc(frames*sizeof(int));
+		*y = malloc(frames*sizeof(int));
+		*x[0] = 0;
+		*y[0] = 0;
+	}
+	return frames;
+}
+
 /* Initialize Instance struct */
 int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t assets_num, Instance* instance, size_t* l) {
 	json* data = asset->data;
@@ -40,8 +78,11 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 	}
 	
 	zpl_json_object* sprite = zpl_adt_query(json, "sprite");
+	instance->frame = 0;
 	if (sprite == NULL) { //Sprite is optional
-		instance->texture = NULL;
+		instance->texture.atlas = NULL;
+		instance->texture.x = NULL;
+		instance->texture.y = NULL;
 	} else {
 		if (sprite->type != ZPL_ADT_TYPE_STRING) return ERROR("Instance sprite isn't string");
 		//Don't have to check extension because texture
@@ -51,7 +92,12 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 			if (strcmp(assets[i].name, sprite->string) == 0) {
 				SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, assets[i].data);
 				if (texture == NULL) return ERROR("Create texture failed: %s", SDL_GetError());
-				instance->texture = texture;
+				instance->texture.atlas = texture;
+				int w, h; SDL_QueryTexture(texture, NULL, NULL, &w, &h);
+				instance->texture.frames =
+					generate_atlas(&instance->texture.x, &instance->texture.y,
+					instance->dst.w, instance->dst.h, w, h);
+				if (instance->texture.frames < 0) return ERROR("Atlas generation failed");
 				break;
 			}
 			if (i == assets_num - 1) return ERROR("Sprite file not found");
@@ -125,7 +171,11 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 
 /* Cleanup Instance struct */
 void instance_cleanup(Instance* instance) {
-	SDL_DestroyTexture(instance->texture);
+	if (instance->texture.atlas) {
+		SDL_DestroyTexture(instance->texture.atlas);
+		free(instance->texture.x);
+		free(instance->texture.y);
+	}
 	if (instance->shape) { //Probably never gets executed
 		cpShapeFree(instance->shape);
 		cpBodyFree(instance->body);

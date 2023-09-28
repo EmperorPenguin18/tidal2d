@@ -18,6 +18,14 @@ enum physics_t {
 };
 typedef enum physics_t physics_t;
 
+struct texture {
+	SDL_Texture* atlas;
+	int* x;
+	int* y;
+	size_t frames;
+};
+typedef struct texture texture;
+
 typedef struct Action Action;
 
 /* Instance definition. These are organized into layers
@@ -28,7 +36,7 @@ struct Instance {
 	char* name;
 	char* id;
 	SDL_Rect dst;
-	SDL_Texture* texture;
+	texture texture;
 	font* font;
 	char* text;
 	physics_t physics;
@@ -38,6 +46,7 @@ struct Instance {
 	Action* actions[EVENTS_NUM];
 	size_t actions_num[EVENTS_NUM];
 	bool* colliding;
+	size_t frame;
 };
 typedef struct Instance Instance;
 

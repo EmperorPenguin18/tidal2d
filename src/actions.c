@@ -65,14 +65,14 @@ static void action_sound(Engine* e, Instance* instance, char* args) {
 	}
 	if (e->audio_buf.size < spec->size) {
 		e->audio_buf.userdata = realloc(e->audio_buf.userdata, spec->size);
-		memset(e->audio_buf.userdata+e->audio_buf.size, e->audio_buf.silence, spec->size - e->audio_buf.size);
+		memset(((Uint8*)e->audio_buf.userdata)+e->audio_buf.size, e->audio_buf.silence, spec->size - e->audio_buf.size);
 		e->audio_buf.size = spec->size;
 	}
 	queued = e->audio_buf.size - pos;
 	if (queued >= spec->size) {
 		SDL_ClearQueuedAudio(e->audiodev);
-		SDL_MixAudioFormat(e->audio_buf.userdata+pos, spec->userdata, spec->format, spec->size, SDL_MIX_MAXVOLUME);
-		SDL_QueueAudio(e->audiodev, e->audio_buf.userdata+pos, queued);
+		SDL_MixAudioFormat(((Uint8*)e->audio_buf.userdata)+pos, spec->userdata, spec->format, spec->size, SDL_MIX_MAXVOLUME);
+		SDL_QueueAudio(e->audiodev, ((Uint8*)e->audio_buf.userdata)+pos, queued);
 	}
 }
 

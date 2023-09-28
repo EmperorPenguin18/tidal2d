@@ -290,7 +290,16 @@ static void draw(Engine* e) {
 	SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances + i;
-		SDL_RenderCopy(e->renderer, instance->texture, NULL, &instance->dst);
+		if (instance->texture.atlas) {
+			SDL_Rect src;
+			src.x = instance->texture.x[instance->frame];
+			src.y = instance->texture.y[instance->frame];
+			src.w = instance->dst.w;
+			src.h = instance->dst.h;
+			SDL_RenderCopy(e->renderer, instance->texture.atlas, &src, &instance->dst);
+			instance->frame++;
+			if (instance->frame == instance->texture.frames) instance->frame = 0;
+		}
 		if (instance->font) {
 			STBTTF_Font* font = STBTTF_OpenFontRW(e->renderer, SDL_RWFromConstMem(instance->font->data, instance->font->len), 28);
 			STBTTF_RenderText(e->renderer, font, instance->dst.x, instance->dst.y+28, instance->text);

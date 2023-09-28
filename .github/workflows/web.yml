@@ -15,14 +15,12 @@ jobs:
     - uses: actions/checkout@v3
     - name: clone emsdk
       run: git clone https://github.com/emscripten-core/emsdk.git
-    - name: cd emsdk
-      run: cd emsdk
     - name: emsdk install
-      run: ./emsdk install latest
+      run: ./emsdk/emsdk install latest
     - name: emsdk activate
-      run: ./emsdk activate latest
+      run: ./emsdk/emsdk activate latest
     - name: emsdk source
-      run: source ./emsdk_env.sh
+      run: source ./emsdk/emsdk_env.sh
     - name: configure
       run: emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
     - name: build
