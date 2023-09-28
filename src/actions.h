@@ -8,8 +8,8 @@
 #include "engine.h"
 
 struct Action {
-	void* args;
-	void(*run)(Engine*, Instance*, void*);
+	char* args;
+	void(*run)(Engine*, Instance*, char*);
 };
 //typedef is in instance.h
 

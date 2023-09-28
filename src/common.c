@@ -2,10 +2,11 @@
 //License is available at
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
-#include "common.h"
-
 #include <SDL_log.h>
 #include <stdarg.h>
+#include <string.h>
+
+#include "common.h"
 
 const char* getextension(const char* filename) {
 	const char *dot = strrchr(filename, '.');
@@ -13,7 +14,7 @@ const char* getextension(const char* filename) {
 	return dot + 1;
 }
 
-const char* basename(const char* filename) {
+const char* base(const char* filename) {
 	const char *dot = strrchr(filename, '/');
 	if (!dot || dot == filename) return "";
 	return dot + 1;

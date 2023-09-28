@@ -2,10 +2,12 @@
 //License is available at
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
+#include <string.h>
+
 #include "actions.h"
 
 /* Copy new active instance. See action documentation. */
-static void action_spawn(Engine* e, Instance* instance, void* args) {
+static void action_spawn(Engine* e, Instance* instance, char* args) {
 	char* object = args;
 	double x = *(double*)(args+strlen(object)+1);
 	double y = *(double*)(args+strlen(object)+1+sizeof(double));
@@ -14,17 +16,17 @@ static void action_spawn(Engine* e, Instance* instance, void* args) {
 }
 
 /* Free resources used by instance. See action documentation. */
-static void action_destroy(Engine* e, Instance* instance, void* args) {
+static void action_destroy(Engine* e, Instance* instance, char* args) {
 	instance_destroy(e, instance);
 }
 
 /* Set a global variable to arbitray data. See action documentation. */
-static void action_setvar(Engine* e, Instance* instance, void* args) {
+static void action_setvar(Engine* e, Instance* instance, char* args) {
 	return; //Not implemented
 }
 
 /* Do a Chipmunk "teleport". See action documentation */
-static void action_move(Engine* e, Instance* instance, void* args) {
+static void action_move(Engine* e, Instance* instance, char* args) {
 	double x = *(double*)args;
 	double y = *(double*)(args+sizeof(double));
 	bool relative = *(bool*)(args+(2*sizeof(double)));
@@ -37,7 +39,7 @@ static void action_move(Engine* e, Instance* instance, void* args) {
 }
 
 /* Change a physics body velocity. See action documentation. */
-static void action_speed(Engine* e, Instance* instance, void* args) {
+static void action_speed(Engine* e, Instance* instance, char* args) {
 	double h = *(double*)args;
 	double v = *(double*)(args+sizeof(double));
 	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Speed: %f %f", h, v);
@@ -45,7 +47,7 @@ static void action_speed(Engine* e, Instance* instance, void* args) {
 }
 
 /* Set the space's gravity. See action documentation. */
-static void action_gravity(Engine* e, Instance* instance, void* args) {
+static void action_gravity(Engine* e, Instance* instance, char* args) {
 	double h = *(double*)args;
 	double v = *(double*)(args+sizeof(double));
 	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Gravity: %f %f", h, v);
@@ -53,24 +55,24 @@ static void action_gravity(Engine* e, Instance* instance, void* args) {
 }
 
 /* Play audio once. See action documentation. */
-static void action_sound(Engine* e, Instance* instance, void* args) {
+static void action_sound(Engine* e, Instance* instance, char* args) {
 	SDL_ClearQueuedAudio(e->audiodev);
-	SDL_AudioSpec* spec = args;
+	SDL_AudioSpec* spec = (SDL_AudioSpec*)args;
 	SDL_QueueAudio(e->audiodev, spec->userdata, spec->size);
 }
 
 /* Play audio on loop. See action documentation. */
-static void action_music(Engine* e, Instance* instance, void* args) {
-	e->music = args;
+static void action_music(Engine* e, Instance* instance, char* args) {
+	e->music = (SDL_AudioSpec*)args;
 }
 
 /* End the game loop. See action documentation. */
-static void action_close(Engine* e, Instance* instance, void* args) {
+static void action_close(Engine* e, Instance* instance, char* args) {
 	e->running = false;
 }
 
 /* Part of the WIP ui system. */
-/*static int action_checkui(Engine* engine, Instance* instance, void*[] args, int num) {
+/*static void action_checkui(Engine* e, Instance* instance, char* args) {
 	event_handler(engine, TIDAL_EVENT_CHECKUI);
 }*/
 
@@ -78,8 +80,8 @@ static void action_close(Engine* e, Instance* instance, void* args) {
  * Variadic arguments must be in pairs of two.
  * STRING is string, INTEGER is number, and REAL is bool.
  */
-static void* args_generator(zpl_json_object* json, size_t n, ...) {
-	void* args = NULL;
+static char* args_generator(zpl_json_object* json, size_t n, ...) {
+	char* args = NULL;
 	size_t size = 0;
 	size_t pos = 0;
 	va_list list;
@@ -120,7 +122,7 @@ static void* args_generator(zpl_json_object* json, size_t n, ...) {
 			ERROR("Not a supported type");
 			return NULL;
 		}
-		void* tmp = realloc(args, size);
+		char* tmp = realloc(args, size);
 		if (tmp == NULL) {
 			ERROR("Out of memory");
 			return NULL;

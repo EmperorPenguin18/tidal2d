@@ -98,7 +98,7 @@ static zpl_isize tar_callback(zpl_file* archive, zpl_tar_record* file, void* use
 	zpl_isize size = 0;
 	void* bin = malloc(file->length);
 	memcpy(bin, zpl_file_stream_buf(archive, &size)+file->offset, file->length);
-	if (asset_init(e->assets+e->assets_num, basename(file->path), bin, file->length) < 0)
+	if (asset_init(e->assets+e->assets_num, base(file->path), bin, file->length) < 0)
 		return ERROR("Asset init failed");
 	e->assets_num++;
 	return 0;
@@ -124,7 +124,7 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 				size_t filesize = 0;
 				void* bin = SDL_LoadFile(names[j], &filesize);
 				if (!bin) return ERROR("Load file failed: %s", SDL_GetError());
-				if (asset_init(e->assets+e->assets_num+j, basename(names[j]), bin, filesize) < 0) return ERROR("Asset init failed: %s", names[j]);
+				if (asset_init(e->assets+e->assets_num+j, base(names[j]), bin, filesize) < 0) return ERROR("Asset init failed: %s", names[j]);
 				free(names[j]);
 			}
 			e->assets_num += num;
@@ -136,7 +136,7 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 			size_t filesize = 0;
 			void* bin = SDL_LoadFile(argv[i], &filesize);
 			if (!bin) return ERROR("Load file failed: %s", SDL_GetError());
-			if (asset_init(e->assets+e->assets_num, argv[i], bin, filesize) < 0) return ERROR("Asset init failed: %s", argv[i]);
+			if (asset_init(e->assets+e->assets_num, base(argv[i]), bin, filesize) < 0) return ERROR("Asset init failed: %s", argv[i]);
 			e->assets_num++;
 		}
 	}
@@ -314,7 +314,7 @@ void engine_run(void* p) {
 	Uint64 end = SDL_GetPerformanceCounter();
 	float elapsed = (end - start) / (float)SDL_GetPerformanceFrequency();
 	float fps = 1.0/elapsed;
-	void* args = malloc(strlen("TIDAL_FPS")+1+sizeof(float));
+	char* args = malloc(strlen("TIDAL_FPS")+1+sizeof(float));
 	strcpy(args, "TIDAL_FPS");
 	memcpy(args+strlen("TIDAL_FPS")+1, &fps, sizeof(float));
 	//action_setvar(e, NULL, args);

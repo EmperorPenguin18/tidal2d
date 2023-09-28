@@ -43,7 +43,7 @@ endif()
 
 # SDL2 dependency
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
-	target_include_directories(tidal2d PRIVATE "/usr/lib/emscripten/system/include/SDL")
+	target_compile_options(tidal2d PRIVATE "-sUSE_SDL=2")
 	target_link_options(tidal2d PRIVATE "-sUSE_SDL=2")
 	target_link_options(tidal2d PRIVATE "-sALLOW_MEMORY_GROWTH")
 	set_target_properties(tidal2d PROPERTIES SUFFIX ".html") # remove later
@@ -115,7 +115,7 @@ else()
 	FetchContent_GetProperties(chipmunk)
 	if(NOT chipmunk_POPULATED)
 		FetchContent_Populate(chipmunk)
-		if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+		if (NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 			file(READ "${chipmunk_SOURCE_DIR}/src/cpHastySpace.c" TEXT)
 			string(REPLACE "#include <sys/sysctl.h>" "" TEXT "${TEXT}")
 			file(WRITE "${chipmunk_SOURCE_DIR}/src/cpHastySpace.c" "${TEXT}")

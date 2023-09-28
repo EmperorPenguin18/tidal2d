@@ -6,7 +6,7 @@
 #define __COMMON_H__
 
 const char* getextension(const char*);
-const char* basename(const char*);
+const char* base(const char*);
 char* gen_uuid();
 int ERROR(const char*, ...);
 
