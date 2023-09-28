@@ -132,10 +132,11 @@ static void wav_destroy(void* in) {
 /* .ogg handler. Slow */
 static int vorb_create(void** out, void* in, const size_t len) {
 	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
-	spec->format = AUDIO_S16SYS;
+	spec->format = AUDIO_S16;
 	spec->samples = 1024;
 	spec->size = stb_vorbis_decode_memory(in, len, (int*)&spec->channels, (int*)&spec->freq, (short**)&spec->userdata);
 	if (spec->size == -1) return ERROR("Load ogg failed");
+	spec->size = spec->size * sizeof(short) * spec->channels;
 	SDL_free(in);
 	*out = spec;
 	return 0;

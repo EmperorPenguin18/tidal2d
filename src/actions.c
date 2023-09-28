@@ -56,13 +56,29 @@ static void action_gravity(Engine* e, Instance* instance, char* args) {
 
 /* Play audio once. See action documentation. */
 static void action_sound(Engine* e, Instance* instance, char* args) {
-	SDL_ClearQueuedAudio(e->audiodev);
 	SDL_AudioSpec* spec = (SDL_AudioSpec*)args;
-	SDL_QueueAudio(e->audiodev, spec->userdata, spec->size);
+	Uint32 queued = SDL_GetQueuedAudioSize(e->audiodev);
+	Uint32 pos = e->audio_buf.size - queued;
+	if (!queued) {
+		pos = 0;
+		memset(e->audio_buf.userdata, e->audio_buf.silence, e->audio_buf.size);
+	}
+	if (e->audio_buf.size < spec->size) {
+		e->audio_buf.userdata = realloc(e->audio_buf.userdata, spec->size);
+		memset(e->audio_buf.userdata+e->audio_buf.size, e->audio_buf.silence, spec->size - e->audio_buf.size);
+		e->audio_buf.size = spec->size;
+	}
+	queued = e->audio_buf.size - pos;
+	if (queued >= spec->size) {
+		SDL_ClearQueuedAudio(e->audiodev);
+		SDL_MixAudioFormat(e->audio_buf.userdata+pos, spec->userdata, spec->format, spec->size, SDL_MIX_MAXVOLUME);
+		SDL_QueueAudio(e->audiodev, e->audio_buf.userdata+pos, queued);
+	}
 }
 
 /* Play audio on loop. See action documentation. */
 static void action_music(Engine* e, Instance* instance, char* args) {
+	action_sound(e, instance, args);
 	e->music = (SDL_AudioSpec*)args;
 }
 

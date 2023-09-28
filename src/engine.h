@@ -30,6 +30,7 @@ struct Engine {
 	char* first;
 	size_t first_layer;
 	SDL_AudioDeviceID audiodev;
+	SDL_AudioSpec audio_buf;
 	SDL_AudioSpec* music;
 	lua_State* L;
 	SDL_Rect win_rect;

@@ -73,9 +73,10 @@ static int setup_env(Engine* e) {
 			spec.samples = 2048;
 		}
 	} else SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio device name: %s", name);
-	e->audiodev = SDL_OpenAudioDevice(name, 0, &spec, NULL, SDL_AUDIO_ALLOW_ANY_CHANGE);
+	e->audiodev = SDL_OpenAudioDevice(name, 0, &spec, &e->audio_buf, SDL_AUDIO_ALLOW_ANY_CHANGE);
 	if (!e->audiodev) return ERROR("Open audio failed: %s", SDL_GetError());
 	SDL_PauseAudioDevice(e->audiodev, 0);
+	e->audio_buf.size = 0;
 	SDL_free(name);
 	e->space = cpSpaceNew();
 	cpCollisionHandler* col_hand = cpSpaceAddDefaultCollisionHandler(e->space);
@@ -312,8 +313,13 @@ void engine_run(void* p) {
 	if (ev != TIDAL_EVENT_ERR) event_handler(e, ev, NULL);
 	update(e);
 	draw(e);
-	if (SDL_GetQueuedAudioSize(e->audiodev) == 0) // Loop music
-		SDL_QueueAudio(e->audiodev, e->music->userdata, e->music->size);
+	if (SDL_GetQueuedAudioSize(e->audiodev) == 0 && e->music) { // Loop music
+		e->audio_buf.userdata = realloc(e->audio_buf.userdata, e->music->size);
+		e->audio_buf.size = e->music->size;
+		memset(e->audio_buf.userdata, e->audio_buf.silence, e->audio_buf.size);
+		SDL_MixAudioFormat(e->audio_buf.userdata, e->music->userdata, e->music->format, e->music->size, SDL_MIX_MAXVOLUME);
+		SDL_QueueAudio(e->audiodev, e->audio_buf.userdata, e->audio_buf.size);
+	}
 #ifndef NDEBUG
 	Uint64 end = SDL_GetPerformanceCounter();
 	float elapsed = (end - start) / (float)SDL_GetPerformanceFrequency();
@@ -343,6 +349,10 @@ void engine_cleanup(Engine* e) {
 	}
 	free(e->inert_ins); e->inert_ins = NULL;
 	free(e->layers); e->layers = NULL;
+	if (e->audio_buf.userdata) {
+		free(e->audio_buf.userdata);
+		e->audio_buf.userdata = NULL;
+	}
 	lua_close(e->L);
 	cpSpaceFree(e->space); e->space = NULL;
 	SDL_CloseAudioDevice(e->audiodev);
