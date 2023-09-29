@@ -180,9 +180,31 @@ void instance_copy(Engine* e, const char* name, float x, float y) {
 			instance->body = cpSpaceAddBody(e->space, cpBodyNew(1, INFINITY));
 			instance->shape = cpSpaceAddShape(e->space, cpBoxShapeNew(instance->body, w, h, 0));
 			cpShapeSetFriction(instance->shape, 0.7);
-		} else if (instance->physics == PHYSICS_STATIC) {
+		} else if (instance->physics == PHYSICS_BOX_STATIC) {
 			instance->body = cpBodyNewKinematic();
 			instance->shape = cpSpaceAddShape(e->space, cpBoxShapeNew(instance->body, w, h, 0));
+			cpShapeSetFriction(instance->shape, 1.0);
+		} else if (instance->physics == PHYSICS_TRIANGLE) {
+			instance->body = cpSpaceAddBody(e->space, cpBodyNew(1, INFINITY));
+			cpVect verts[3];
+			verts[0].x = 0;
+			verts[0].y = -h/2;
+			verts[1].x = -w/2;
+			verts[1].y = h/2;
+			verts[2].x = w/2;
+			verts[2].y = h/2;
+			instance->shape = cpSpaceAddShape(e->space, cpPolyShapeNewRaw(instance->body, 3, verts, 0));
+			cpShapeSetFriction(instance->shape, 0.7);
+		} else if (instance->physics == PHYSICS_TRIANGLE_STATIC) {
+			instance->body = cpBodyNewKinematic();
+			cpVect verts[3];
+			verts[0].x = 0;
+			verts[0].y = -h/2;
+			verts[1].x = -w/2;
+			verts[1].y = h/2;
+			verts[2].x = w/2;
+			verts[2].y = h/2;
+			instance->shape = cpSpaceAddShape(e->space, cpPolyShapeNewRaw(instance->body, 3, verts, 0));
 			cpShapeSetFriction(instance->shape, 1.0);
 		}
 		cpBodySetPosition(instance->body, cpv(x, y));

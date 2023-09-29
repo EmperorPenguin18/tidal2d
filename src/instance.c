@@ -140,7 +140,11 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 		if (strcmp(shape->string, "box") == 0) {
 			instance->physics = PHYSICS_BOX;
 		} else if (strcmp(shape->string, "wall") == 0) {
-			instance->physics = PHYSICS_STATIC;
+			instance->physics = PHYSICS_BOX_STATIC;
+		} else if (strcmp(shape->string, "triangle") == 0) {
+			instance->physics = PHYSICS_TRIANGLE;
+		} else if (strcmp(shape->string, "triangle-wall") == 0) {
+			instance->physics = PHYSICS_TRIANGLE_STATIC;
 		} else return ERROR("Invalid shape");
 	}
 

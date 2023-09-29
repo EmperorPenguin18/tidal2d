@@ -13,7 +13,9 @@
 enum physics_t {
 	PHYSICS_NONE,
 	PHYSICS_BOX,
-	PHYSICS_STATIC,
+	PHYSICS_BOX_STATIC,
+	PHYSICS_TRIANGLE,
+	PHYSICS_TRIANGLE_STATIC,
 	PHYSICS_NUM
 };
 typedef enum physics_t physics_t;
