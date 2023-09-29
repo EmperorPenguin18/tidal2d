@@ -19,11 +19,6 @@ static void action_destroy(Engine* e, Instance* instance, char* args) {
 	instance_destroy(e, instance);
 }
 
-/* Set a global variable to arbitray data. See action documentation. */
-static void action_setvar(Engine* e, Instance* instance, char* args) {
-	return; //Not implemented
-}
-
 /* Do a Chipmunk "teleport". See action documentation */
 static void action_move(Engine* e, Instance* instance, char* args) {
 	float x = *(float*)args;
@@ -114,6 +109,70 @@ static void action_rotation(Engine* e, Instance* instance, char* args) {
 	cpFloat angle = *(float*)args;
 	cpBodySetAngle(instance->body, angle*(CP_PI/180));
 	cpSpaceReindexShapesForBody(e->space, instance->body);
+}
+
+/* Set a global variable to arbitray data. See action documentation. */
+static void action_variable(Engine* e, Instance* instance, char* args) {
+	char* name = args;
+	char* string = args+strlen(name)+1;
+	float number = *(float*)(args+strlen(name)+strlen(string)+2);
+	for (size_t i = 0; i < e->var_num; i++) {
+		if (strcmp(name, e->vars[i].name) == 0) { //update existing var
+			if (strlen(string) > 0) {
+				e->vars[i].len = strlen(string)+1;
+				e->vars[i].data = string;
+			} else {
+				e->vars[i].len = sizeof(float);
+				e->vars[i].data = args+strlen(name)+strlen(string)+2;
+			}
+			return;
+		}
+	}
+	//new var
+	e->vars = realloc(e->vars, e->var_num+1);
+	e->vars[e->var_num].name = name;
+	if (strlen(string) > 0) {
+		e->vars[e->var_num].len = strlen(string)+1;
+		e->vars[e->var_num].data = string;
+	} else {
+		e->vars[e->var_num].len = sizeof(float);
+		e->vars[e->var_num].data = args+strlen(name)+strlen(string)+2;
+	}
+	e->var_num++;
+}
+
+/* Save the global vars to a file. See action documentation. */
+static void action_save(Engine* e, Instance* instance, char* args) {
+	char* file = args;
+	SDL_RWops* rw = SDL_RWFromFile(file, "wb");
+	for (size_t i = 0; i < e->var_num; i++) {
+		SDL_RWwrite(rw, strlen(e->vars[i].name), sizeof(size_t), 1);
+		SDL_RWwrite(rw, e->vars[i].name, strlen(e->vars[i].name), 1);
+		SDL_RWwrite(rw, e->vars[i].len, sizeof(size_t), 1);
+		SDL_RWwrite(rw, e->vars[i].data, e->vars[i].len, 1);
+	}
+	SDL_RWclose(rw);
+}
+
+/* Load global vars from a file. See action documentation. */
+static void action_load(Engine* e, Instance* instance, char* args) {
+	char* file = args;
+	SDL_RWops* rw = SDL_RWFromFile(file, "rb");
+	int eof;
+	while (1) {
+		e->vars = realloc(e->vars, e->var_num+1);
+		size_t strlen = 0;
+		eof = SDL_RWread(rw, &strlen, sizeof(size_t), 1);
+		if (!eof) break;
+		eof = SDL_RWread(rw, e->vars[e->var_num].name, strlen, 1);
+		if (!eof) break;
+		eof = SDL_RWread(rw, &e->vars[e->var_num].len, sizeof(size_t), 1);
+		if (!eof) break;
+		eof = SDL_RWread(rw, e->vars[e->var_num].data, e->vars[e->var_num].len, 1);
+		if (!eof) break;
+		e->var_num++;
+	}
+	SDL_RWclose(rw);
 }
 
 /* Fill in memory with specified structure.
@@ -252,6 +311,24 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			args_generator(json, 1, "angle", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
 		action->run = &action_rotation;
+
+	} else if (strcmp(type, "variable") == 0) {
+		action->args =
+			args_generator(json, 2, "name", ZPL_ADT_TYPE_STRING, "string", ZPL_ADT_TYPE_STRING, "number", ZPL_ADT_TYPE_INTEGER);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_variable;
+
+	} else if (strcmp(type, "save") == 0) {
+		action->args =
+			args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_save;
+
+	} else if (strcmp(type, "load") == 0) {
+		action->args =
+			args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_load;
 
 	} else return ERROR("Invalid action type found");
 	return 0;

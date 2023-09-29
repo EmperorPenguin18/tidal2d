@@ -357,7 +357,7 @@ void engine_run(void* p) {
 	char* args = malloc(strlen("TIDAL_FPS")+1+sizeof(float));
 	strcpy(args, "TIDAL_FPS");
 	memcpy(args+strlen("TIDAL_FPS")+1, &fps, sizeof(float));
-	//action_setvar(e, NULL, args);
+	action_variable(e, NULL, args);
 	free(args);
 #endif
 }
@@ -383,6 +383,11 @@ void engine_cleanup(Engine* e) {
 		free(e->audio_buf.userdata);
 		e->audio_buf.userdata = NULL;
 	}
+	/*for (size_t i = 0; i < e->var_num; i++) {
+		free(e->vars[i].name);
+		free(e->vars[i].data);
+	}*/
+	if (e->vars) { free(e->vars); e->vars = NULL; }
 	lua_close(e->L);
 	cpSpaceFree(e->space); e->space = NULL;
 	SDL_CloseAudioDevice(e->audiodev);

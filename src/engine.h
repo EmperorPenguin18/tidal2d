@@ -11,6 +11,13 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+struct var {
+	char* name;
+	size_t len;
+	void* data;
+};
+typedef struct var var;
+
 /* The context struct. Keeps track of all state related
  * stuff, and asset arrays.
  */
@@ -34,6 +41,8 @@ struct Engine {
 	SDL_AudioSpec* music;
 	lua_State* L;
 	SDL_FRect win_rect;
+	var* vars;
+	size_t var_num;
 };
 typedef struct Engine Engine;
 
