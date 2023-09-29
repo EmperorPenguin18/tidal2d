@@ -15,7 +15,8 @@
 /* Loops over actions and runs them. */
 void event_handler(Engine* e, event_t ev, Instance* caller) {
 	if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
-	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION || ev == TIDAL_EVENT_ANIMATION) {
+	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION ||
+	ev == TIDAL_EVENT_ANIMATION || ev == TIDAL_EVENT_CLICKON) {
 		//Special case: some events only trigger based on instance id
 		for (size_t j = 0; j < caller->actions_num[ev]; j++) {
 			Action* action = caller->actions[ev] + j;
@@ -280,10 +281,13 @@ Engine* engine_init(int argc, char *argv[]) {
 
 /* Update instance position based on physics. Watch out for destroying instances in the loop. */
 static void update(Engine* e) {
+	int mouse_x, mouse_y;
+	Uint32 mouse = SDL_GetMouseState(&mouse_x, &mouse_y);
+	SDL_FPoint point; point.x = mouse_x; point.y = mouse_y;
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances+i;
+		SDL_FRect* dst = &(instance->dst);
 		if (instance->body != NULL) {
-			SDL_FRect* dst = &(instance->dst);
 			cpVect pos = cpBodyGetPosition(instance->body);
 			SDL_FRect result;
 			dst->x = pos.x - dst->w/2;
@@ -303,6 +307,10 @@ static void update(Engine* e) {
 			instance->frame = instance->end_frame;
 			instance->end_frame = -1;
 			event_handler(e, TIDAL_EVENT_ANIMATION, instance);
+			continue;
+		}
+		if (mouse && SDL_PointInFRect(&point, dst)) {
+			event_handler(e, TIDAL_EVENT_CLICKON, instance);
 		}
 	}
 	for (int i = 0; i < 10; i++) {

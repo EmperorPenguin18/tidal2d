@@ -5,6 +5,8 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
+//#define ERROR() __FILE__ __LINE__
+
 const char* getextension(const char*);
 const char* base(const char*);
 char* gen_uuid();

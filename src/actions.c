@@ -191,6 +191,26 @@ static void action_timer(Engine* e, Instance* instance, char* args) {
 	e->timers[num] = SDL_AddTimer(time*1000, timer_callback, &e->timer_triggered[num]);
 }
 
+/* Set the texture colour mod. See action documentation. */
+static void action_colour(Engine* e, Instance* instance, char* args) {
+	Uint8 r = floor(*(float*)args);
+	Uint8 g = floor(*(float*)args+sizeof(float));
+	Uint8 b = floor(*(float*)args+(2*sizeof(float)));
+	SDL_SetTextureColorMod(instance->texture.atlas, r, g, b);
+}
+
+/* Open the given URI externally. See action documentation. */
+static void action_uri(Engine* e, Instance* instance, char* args) {
+	char* link = args;
+	SDL_OpenURL(link);
+}
+
+/* Restart the game. See action documentation. */
+static void action_reload(Engine* e, Instance* instance, char* args) {
+	e->reload = true;
+	action_close(e, NULL, NULL);
+}
+
 /* Fill in memory with specified structure.
  * Variadic arguments must be in pairs of two.
  * STRING is string, INTEGER is number, and REAL is bool.
@@ -351,6 +371,22 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			args_generator(json, 2, "num", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
 		action->run = &action_timer;
+
+	} else if (strcmp(type, "color") == 0) {
+		action->args =
+			args_generator(json, 3, "r", ZPL_ADT_TYPE_INTEGER, "g", ZPL_ADT_TYPE_INTEGER, "b", ZPL_ADT_TYPE_INTEGER);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_colour;
+
+	} else if (strcmp(type, "uri") == 0) {
+		action->args =
+			args_generator(json, 1, "link", ZPL_ADT_TYPE_STRING);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_uri;
+
+	} else if (strcmp(type, "reload") == 0) {
+		action->args = NULL;
+		action->run = &action_reload;
 
 	} else return ERROR("Invalid action type found");
 	return 0;

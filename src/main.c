@@ -9,16 +9,20 @@
 #endif
 
 int main(int argc, char *argv[]) {
-	Engine* e = engine_init(argc, argv);
-	if (e == NULL) return 1;
+	bool reload = true;
+	while (reload) {
+		Engine* e = engine_init(argc, argv);
+		if (e == NULL) return 1;
 #ifdef __EMSCRIPTEN__
-	emscripten_set_main_loop_arg(engine_run, e, 0, 1);
+		emscripten_set_main_loop_arg(engine_run, e, 0, 1);
 #else
-	while (e->running) {
-		engine_run(e);
-	}
+		while (e->running) {
+			engine_run(e);
+		}
 #endif
-	engine_cleanup(e);
-	e = NULL;
+		reload = e->reload;
+		engine_cleanup(e);
+		e = NULL;
+	}
 	return 0;
 }

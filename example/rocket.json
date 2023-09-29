@@ -14,6 +14,25 @@
 			{
 				"type": "sound",
 				"file": "thrust.wav"
+			},
+			{
+				"type": "color",
+				"r": 255,
+				"g": 51,
+				"b": 0
+			},
+			{
+				"type": "timer",
+				"num": 1,
+				"time": 1
+			}
+		],
+		"timer_1": [
+			{
+				"type": "color",
+				"r": 255,
+				"g": 255,
+				"b": 255
 			}
 		],
 		"creation": [
@@ -39,6 +58,15 @@
 				"type": "speed",
 				"h": 50,
 				"v": 0
+			}
+		],
+		"clickon": [
+			{
+				"type": "uri",
+				"link": "https://github.com/EmperorPenguin18"
+			},
+			{
+				"type": "destroy"
 			}
 		]
 	}

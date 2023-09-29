@@ -28,6 +28,7 @@ struct Engine {
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	bool running;
+	bool reload;
 	Asset* assets;
 	size_t assets_num;
 	cpSpace* space;
