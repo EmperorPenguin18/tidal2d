@@ -129,7 +129,7 @@ static void action_variable(Engine* e, Instance* instance, char* args) {
 		}
 	}
 	//new var
-	e->vars = realloc(e->vars, e->var_num+1);
+	e->vars = realloc(e->vars, (e->var_num+1)*sizeof(var));
 	e->vars[e->var_num].name = name;
 	if (strlen(string) > 0) {
 		e->vars[e->var_num].len = strlen(string)+1;
@@ -146,9 +146,10 @@ static void action_save(Engine* e, Instance* instance, char* args) {
 	char* file = args;
 	SDL_RWops* rw = SDL_RWFromFile(file, "wb");
 	for (size_t i = 0; i < e->var_num; i++) {
-		SDL_RWwrite(rw, strlen(e->vars[i].name), sizeof(size_t), 1);
-		SDL_RWwrite(rw, e->vars[i].name, strlen(e->vars[i].name), 1);
-		SDL_RWwrite(rw, e->vars[i].len, sizeof(size_t), 1);
+		size_t namelen = strlen(e->vars[i].name);
+		SDL_RWwrite(rw, &namelen, sizeof(size_t), 1);
+		SDL_RWwrite(rw, e->vars[i].name, namelen, 1);
+		SDL_RWwrite(rw, &e->vars[i].len, sizeof(size_t), 1);
 		SDL_RWwrite(rw, e->vars[i].data, e->vars[i].len, 1);
 	}
 	SDL_RWclose(rw);
@@ -160,11 +161,11 @@ static void action_load(Engine* e, Instance* instance, char* args) {
 	SDL_RWops* rw = SDL_RWFromFile(file, "rb");
 	int eof;
 	while (1) {
-		e->vars = realloc(e->vars, e->var_num+1);
-		size_t strlen = 0;
-		eof = SDL_RWread(rw, &strlen, sizeof(size_t), 1);
+		e->vars = realloc(e->vars, (e->var_num+1)*sizeof(var));
+		size_t namelen = 0;
+		eof = SDL_RWread(rw, &namelen, sizeof(size_t), 1);
 		if (!eof) break;
-		eof = SDL_RWread(rw, e->vars[e->var_num].name, strlen, 1);
+		eof = SDL_RWread(rw, e->vars[e->var_num].name, namelen, 1);
 		if (!eof) break;
 		eof = SDL_RWread(rw, &e->vars[e->var_num].len, sizeof(size_t), 1);
 		if (!eof) break;
@@ -173,6 +174,21 @@ static void action_load(Engine* e, Instance* instance, char* args) {
 		e->var_num++;
 	}
 	SDL_RWclose(rw);
+}
+
+static Uint32 timer_callback(Uint32 interval, void* param) {
+	bool* triggered = param;
+	*triggered = true;
+	return 0;
+}
+
+/* Set a custom timer. See action documentation. */
+static void action_timer(Engine* e, Instance* instance, char* args) {
+	int num = floor(*(float*)args);
+	float time = *(float*)(args+sizeof(float));
+	if (num < 0 || num > 9 || time < 0) return;
+	SDL_RemoveTimer(e->timers[num]);
+	e->timers[num] = SDL_AddTimer(time*1000, timer_callback, &e->timer_triggered[num]);
 }
 
 /* Fill in memory with specified structure.
@@ -329,6 +345,12 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
 		if (action->args == NULL) return ERROR("Args generator failed");
 		action->run = &action_load;
+
+	} else if (strcmp(type, "timer") == 0) {
+		action->args =
+			args_generator(json, 2, "num", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_timer;
 
 	} else return ERROR("Invalid action type found");
 	return 0;

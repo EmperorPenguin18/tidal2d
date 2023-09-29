@@ -35,6 +35,26 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_LEAVE;
 	} else if (strcmp(string, "animation_complete") == 0) {
 		return TIDAL_EVENT_ANIMATION;
+	} else if (strcmp(string, "timer_0") == 0) {
+		return TIDAL_EVENT_TIMER_0;
+	} else if (strcmp(string, "timer_1") == 0) {
+		return TIDAL_EVENT_TIMER_1;
+	} else if (strcmp(string, "timer_2") == 0) {
+		return TIDAL_EVENT_TIMER_2;
+	} else if (strcmp(string, "timer_3") == 0) {
+		return TIDAL_EVENT_TIMER_3;
+	} else if (strcmp(string, "timer_4") == 0) {
+		return TIDAL_EVENT_TIMER_4;
+	} else if (strcmp(string, "timer_5") == 0) {
+		return TIDAL_EVENT_TIMER_5;
+	} else if (strcmp(string, "timer_6") == 0) {
+		return TIDAL_EVENT_TIMER_6;
+	} else if (strcmp(string, "timer_7") == 0) {
+		return TIDAL_EVENT_TIMER_7;
+	} else if (strcmp(string, "timer_8") == 0) {
+		return TIDAL_EVENT_TIMER_8;
+	} else if (strcmp(string, "timer_9") == 0) {
+		return TIDAL_EVENT_TIMER_9;
 	}
 	return TIDAL_EVENT_ERR;
 }

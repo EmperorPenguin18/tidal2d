@@ -22,6 +22,9 @@ typedef struct var var;
  * stuff, and asset arrays.
  */
 struct Engine {
+#ifndef NDEBUG
+	float* fps;
+#endif
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	bool running;
@@ -43,6 +46,8 @@ struct Engine {
 	SDL_FRect win_rect;
 	var* vars;
 	size_t var_num;
+	SDL_TimerID timers[10];
+	bool timer_triggered[10];
 };
 typedef struct Engine Engine;
 

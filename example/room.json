@@ -35,6 +35,24 @@
 				"object": "obstacle.json",
 				"x": 400,
 				"y": 400
+			},
+			{
+				"type": "timer",
+				"num": 0,
+				"time": 10
+			}
+		],
+		"timer_0": [
+			{
+				"type": "spawn",
+				"object": "rocket.json",
+				"x": 50,
+				"y": 240
+			},
+			{
+				"type": "timer",
+				"num": 0,
+				"time": 10
 			}
 		]
 	}

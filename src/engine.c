@@ -84,6 +84,13 @@ static int setup_env(Engine* e) {
 	col_hand->userData = e; //Set the collision handler's user data to the context
 	e->L = luaL_newstate();
 	luaL_openlibs(e->L);
+#ifndef NDEBUG
+	e->fps = malloc(sizeof(float));
+	e->vars = realloc(e->vars, sizeof(var));
+	e->vars[0].name = "TIDAL_FPS";
+	e->vars[0].len = sizeof(float);
+	e->vars[0].data = e->fps;
+#endif
 	return 0;
 }
 
@@ -298,6 +305,12 @@ static void update(Engine* e) {
 			event_handler(e, TIDAL_EVENT_ANIMATION, instance);
 		}
 	}
+	for (int i = 0; i < 10; i++) {
+		if (e->timer_triggered[i]) {
+			e->timer_triggered[i] = false;
+			event_handler(e, TIDAL_EVENT_TIMER_0+i, NULL);
+		}
+	}
 	cpSpaceStep(e->space, 1.0/60.0);
 }
 
@@ -354,11 +367,7 @@ void engine_run(void* p) {
 	Uint64 end = SDL_GetPerformanceCounter();
 	float elapsed = (end - start) / (float)SDL_GetPerformanceFrequency();
 	float fps = 1.0/elapsed;
-	char* args = malloc(strlen("TIDAL_FPS")+1+sizeof(float));
-	strcpy(args, "TIDAL_FPS");
-	memcpy(args+strlen("TIDAL_FPS")+1, &fps, sizeof(float));
-	action_variable(e, NULL, args);
-	free(args);
+	memcpy(e->fps, &fps, sizeof(float));
 #endif
 }
 
@@ -394,5 +403,8 @@ void engine_cleanup(Engine* e) {
 	SDL_DestroyRenderer(e->renderer); e->renderer = NULL;
 	SDL_DestroyWindow(e->window); e->window = NULL;
 	SDL_Quit();
+#ifndef NDEBUG
+	free(e->fps); e->fps = NULL;
+#endif
 	free(e); //Local so can't set to NULL
 }
