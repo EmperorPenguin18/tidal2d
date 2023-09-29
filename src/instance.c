@@ -79,6 +79,7 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 	
 	zpl_json_object* sprite = zpl_adt_query(json, "sprite");
 	instance->frame = 0;
+	instance->end_frame = -1;
 	if (sprite == NULL) { //Sprite is optional
 		instance->texture.atlas = NULL;
 		instance->texture.x = NULL;

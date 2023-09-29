@@ -47,6 +47,8 @@ struct Instance {
 	size_t actions_num[EVENTS_NUM];
 	bool* colliding;
 	size_t frame;
+	int end_frame;
+	SDL_TimerID timer;
 };
 typedef struct Instance Instance;
 

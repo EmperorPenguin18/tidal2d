@@ -13,9 +13,9 @@
 #include "engine.h"
 
 /* Loops over actions and runs them. */
-static void event_handler(Engine* e, event_t ev, Instance* caller) {
+void event_handler(Engine* e, event_t ev, Instance* caller) {
 	if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
-	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION) {
+	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION || ev == TIDAL_EVENT_ANIMATION) {
 		//Special case: some events only trigger based on instance id
 		for (size_t j = 0; j < caller->actions_num[ev]; j++) {
 			Action* action = caller->actions[ev] + j;
@@ -52,7 +52,7 @@ static int setup_env(Engine* e) {
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_CUSTOM, SDL_LOG_PRIORITY_DEBUG);
 #endif
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR);
-	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) < 0) return ERROR("SDL init failed: %s", SDL_GetError());
+	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) return ERROR("SDL init failed: %s", SDL_GetError());
 	e->win_rect.w = 640;
 	e->win_rect.h = 480;
 	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, e->win_rect.w, e->win_rect.h, 0);
@@ -194,17 +194,10 @@ void instance_copy(Engine* e, const char* name, float x, float y) {
 	event_handler(e, TIDAL_EVENT_CREATION, instance);
 }
 
-/* Removes instance from world. Probably slow */
+/* Removes instance from world. Doesn't shrink array */
 void instance_destroy(Engine* e, Instance* instance) {
 	event_handler(e, TIDAL_EVENT_DESTRUCTION, instance);
 
-	size_t n = 0;
-	for (size_t i = 0; i < e->instances_num; i++) { /* Not super efficient */
-		if (strcmp(instance->id, e->instances[i].id) == 0) {
-			n = i;
-			break;
-		}
-	}
 	free(instance->id); instance->id = NULL;
 	if (instance->shape) {
 		free(instance->colliding); instance->colliding = NULL;
@@ -216,9 +209,8 @@ void instance_destroy(Engine* e, Instance* instance) {
 		cpShapeFree(instance->shape); instance->shape = NULL;
 		cpBodyFree(instance->body); instance->body = NULL;
 	}
-	for (size_t i = n; i < e->instances_num-1; i++) e->instances[i] = e->instances[i + 1];
-	e->instances_num -= 1;
 	e->layers[instance->layer] -= 1;
+	memset(instance, 0, sizeof(Instance));
 }
 
 /* Create all the objects, then spawn the first one. */
@@ -260,21 +252,28 @@ Engine* engine_init(int argc, char *argv[]) {
 /* Update instance position based on physics. Watch out for destroying instances in the loop. */
 static void update(Engine* e) {
 	for (size_t i = 0; i < e->instances_num; i++) {
-		if (e->instances[i].body != NULL) {
-			SDL_Rect* dst = &(e->instances[i].dst);
-			cpVect pos = cpBodyGetPosition(e->instances[i].body);
+		Instance* instance = e->instances+i;
+		if (instance->body != NULL) {
+			SDL_Rect* dst = &(instance->dst);
+			cpVect pos = cpBodyGetPosition(instance->body);
 			SDL_Rect result;
 			dst->x = pos.x - dst->w/2;
 			dst->y = pos.y - dst->h/2;
 			if (!SDL_IntersectRect(&e->win_rect, dst, &result)) {
-				event_handler(e, TIDAL_EVENT_LEAVE, e->instances+i);
+				event_handler(e, TIDAL_EVENT_LEAVE, instance);
 				continue;
 			}
-			bool* colliding = e->instances[i].colliding;
+			bool* colliding = instance->colliding;
 			if (*colliding) {
 				*colliding = false;
-				event_handler(e, TIDAL_EVENT_COLLISION, e->instances+i);
+				event_handler(e, TIDAL_EVENT_COLLISION, instance);
+				continue;
 			}
+		}
+		if (instance->frame > instance->end_frame) {
+			instance->frame = instance->end_frame;
+			instance->end_frame = -1;
+			event_handler(e, TIDAL_EVENT_ANIMATION, instance);
 		}
 	}
 	cpSpaceStep(e->space, 1.0/60.0);
@@ -297,8 +296,6 @@ static void draw(Engine* e) {
 			src.w = instance->dst.w;
 			src.h = instance->dst.h;
 			SDL_RenderCopy(e->renderer, instance->texture.atlas, &src, &instance->dst);
-			instance->frame++;
-			if (instance->frame == instance->texture.frames) instance->frame = 0;
 		}
 		if (instance->font) {
 			STBTTF_Font* font = STBTTF_OpenFontRW(e->renderer, SDL_RWFromConstMem(instance->font->data, instance->font->len), 28);

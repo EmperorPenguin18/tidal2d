@@ -3,5 +3,23 @@
 	"width": 100,
 	"height": 100,
 	"sprite": "rainbow-box.svg",
-	"shape": "wall"
+	"shape": "wall",
+	"events": {
+		"creation": [
+			{
+				"type": "animation",
+				"start": 0,
+				"end": 5,
+				"time": 0.5
+			}
+		],
+		"animation_complete": [
+			{
+				"type": "animation",
+				"start": 0,
+				"end": 5,
+				"time": 0.5
+			}
+		]
+	}
 }

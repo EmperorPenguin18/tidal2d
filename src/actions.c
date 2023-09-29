@@ -11,7 +11,6 @@ static void action_spawn(Engine* e, Instance* instance, char* args) {
 	char* object = args;
 	double x = *(double*)(args+strlen(object)+1);
 	double y = *(double*)(args+strlen(object)+1+sizeof(double));
-	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Spawn: %s %f %f", object, x, y);
 	instance_copy(e, object, x, y);
 }
 
@@ -30,7 +29,6 @@ static void action_move(Engine* e, Instance* instance, char* args) {
 	double x = *(double*)args;
 	double y = *(double*)(args+sizeof(double));
 	bool relative = *(bool*)(args+(2*sizeof(double)));
-	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Move: %f %f %d", x, y, relative);
 	if (relative) {
 		cpVect v = cpBodyGetPosition(instance->body);
 		cpVect rel = cpvadd(v, cpv(x, y));
@@ -42,7 +40,6 @@ static void action_move(Engine* e, Instance* instance, char* args) {
 static void action_speed(Engine* e, Instance* instance, char* args) {
 	double h = *(double*)args;
 	double v = *(double*)(args+sizeof(double));
-	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Speed: %f %f", h, v);
 	cpBodySetVelocity(instance->body, cpv(h, v));
 }
 
@@ -50,7 +47,6 @@ static void action_speed(Engine* e, Instance* instance, char* args) {
 static void action_gravity(Engine* e, Instance* instance, char* args) {
 	double h = *(double*)args;
 	double v = *(double*)(args+sizeof(double));
-	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Gravity: %f %f", h, v);
 	cpSpaceSetGravity(e->space, cpv(h, v));
 }
 
@@ -92,6 +88,27 @@ static void action_close(Engine* e, Instance* instance, char* args) {
 	event_handler(engine, TIDAL_EVENT_CHECKUI);
 }*/
 
+static Uint32 animation_callback(Uint32 interval, void* param) {
+	Instance* instance = param;
+	instance->frame++;
+	if (instance->frame > instance->end_frame) return 0;
+	return interval;
+}
+
+/* Set animation frame timer. See action documentation. */
+static void action_animation(Engine* e, Instance* instance, char* args) {
+	int start = floor(*(double*)args);
+	int end = floor(*(double*)(args+sizeof(double)));
+	double time = *(double*)(args+(2*sizeof(double)));
+	if (start < 0 || end < 0 || time < 0 || end > instance->texture.frames-1) return;
+	instance->frame = start;
+	if (end > start) {
+		instance->end_frame = end;
+		SDL_RemoveTimer(instance->timer);
+		instance->timer = SDL_AddTimer(time*1000, animation_callback, instance);
+	}
+}
+
 /* Fill in memory with specified structure.
  * Variadic arguments must be in pairs of two.
  * STRING is string, INTEGER is number, and REAL is bool.
@@ -124,8 +141,8 @@ static char* args_generator(zpl_json_object* json, size_t n, ...) {
 				return NULL;
 			}
 			size += sizeof(double);
-			double f = key->integer;
-			if (key->type == type) src = &f;
+			double d = key->integer;
+			if (key->type == type) src = &d;
 			else src = &key->real;
 		} else if (type == ZPL_ADT_TYPE_REAL) {
 			if (key->props != ZPL_ADT_PROPS_TRUE && key->props != ZPL_ADT_PROPS_FALSE) {
@@ -214,6 +231,12 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		action->args = NULL;
 		action->num = 0;
 		action->run = &action_checkui;*/
+
+	} else if (strcmp(type, "animation") == 0) {
+		action->args =
+			args_generator(json, 3, "start", ZPL_ADT_TYPE_INTEGER, "end", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_animation;
 
 	} else return ERROR("Invalid action type found");
 	return 0;

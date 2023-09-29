@@ -33,6 +33,8 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_CHECKUI;
 	} else if (strcmp(string, "leave") == 0) {
 		return TIDAL_EVENT_LEAVE;
+	} else if (strcmp(string, "animation_complete") == 0) {
+		return TIDAL_EVENT_ANIMATION;
 	}
 	return TIDAL_EVENT_ERR;
 }

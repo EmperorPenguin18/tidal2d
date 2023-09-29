@@ -3,6 +3,8 @@
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include <SDL_log.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 
