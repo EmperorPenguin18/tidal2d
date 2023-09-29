@@ -1,0 +1,29 @@
+{
+	"layer": 1,
+	"width": 100,
+	"height": 100,
+	"sprite": "rainbow-box.svg",
+	"shape": "triangle-wall",
+	"events": {
+		"creation": [
+			{
+				"type": "animation",
+				"start": 0,
+				"end": 5,
+				"time": 0.5
+			},
+			{
+				"type": "rotation",
+				"angle": 180
+			}
+		],
+		"animation_complete": [
+			{
+				"type": "animation",
+				"start": 0,
+				"end": 5,
+				"time": 0.5
+			}
+		]
+	}
+}

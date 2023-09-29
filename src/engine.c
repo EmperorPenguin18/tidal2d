@@ -53,8 +53,8 @@ static int setup_env(Engine* e) {
 #endif
 	SDL_LogSetPriority(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR);
 	if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) return ERROR("SDL init failed: %s", SDL_GetError());
-	e->win_rect.w = 640;
-	e->win_rect.h = 480;
+	e->win_rect.w = 640.0;
+	e->win_rect.h = 480.0;
 	e->window = SDL_CreateWindow("Tidal Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, e->win_rect.w, e->win_rect.h, 0);
 	if (!e->window) return ERROR("Create window failed: %s", SDL_GetError());
 	SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Number of render drivers: %d", SDL_GetNumRenderDrivers());
@@ -276,12 +276,12 @@ static void update(Engine* e) {
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances+i;
 		if (instance->body != NULL) {
-			SDL_Rect* dst = &(instance->dst);
+			SDL_FRect* dst = &(instance->dst);
 			cpVect pos = cpBodyGetPosition(instance->body);
-			SDL_Rect result;
+			SDL_FRect result;
 			dst->x = pos.x - dst->w/2;
 			dst->y = pos.y - dst->h/2;
-			if (!SDL_IntersectRect(&e->win_rect, dst, &result)) {
+			if (!SDL_IntersectFRect(&e->win_rect, dst, &result)) {
 				event_handler(e, TIDAL_EVENT_LEAVE, instance);
 				continue;
 			}
@@ -307,7 +307,7 @@ static void draw(Engine* e) {
 	SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(e->renderer);
 	SDL_SetRenderDrawColor(e->renderer, 0xc1, 0xc1, 0xc1, SDL_ALPHA_OPAQUE);
-	SDL_RenderFillRect(e->renderer, &e->win_rect);
+	SDL_RenderFillRectF(e->renderer, &e->win_rect);
 	SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances + i;
@@ -317,7 +317,9 @@ static void draw(Engine* e) {
 			src.y = instance->texture.y[instance->frame];
 			src.w = instance->dst.w;
 			src.h = instance->dst.h;
-			SDL_RenderCopy(e->renderer, instance->texture.atlas, &src, &instance->dst);
+			double angle = cpBodyGetAngle(instance->body)*(180/CP_PI);
+			//SDL_FPoint center; cpVect v = cpBodyLocalToWorld(instance->body, cpBodyGetCenterOfGravity(instance->body)); center.x = v.x; center.y = v.y;
+			SDL_RenderCopyExF(e->renderer, instance->texture.atlas, &src, &instance->dst, angle, NULL, SDL_FLIP_NONE);
 		}
 		if (instance->font) {
 			STBTTF_Font* font = STBTTF_OpenFontRW(e->renderer, SDL_RWFromConstMem(instance->font->data, instance->font->len), 28);
@@ -325,7 +327,7 @@ static void draw(Engine* e) {
 			STBTTF_CloseFont(font);
 		}
 #ifndef NDEBUG
-		SDL_RenderDrawRect(e->renderer, &instance->dst);
+		SDL_RenderDrawRectF(e->renderer, &instance->dst);
 #endif
 	}
 	SDL_RenderPresent(e->renderer);

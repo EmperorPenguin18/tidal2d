@@ -60,8 +60,8 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 	}
 	*l = instance->layer;
 	
-	instance->dst.x = 0;
-	instance->dst.y = 0;
+	instance->dst.x = 0.0;
+	instance->dst.y = 0.0;
 	zpl_json_object* width = zpl_adt_query(json, "width");
 	if (width == NULL) { //Width is optional
 		instance->dst.w = 0;

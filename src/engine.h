@@ -33,7 +33,7 @@ struct Engine {
 	SDL_AudioSpec audio_buf;
 	SDL_AudioSpec* music;
 	lua_State* L;
-	SDL_Rect win_rect;
+	SDL_FRect win_rect;
 };
 typedef struct Engine Engine;
 

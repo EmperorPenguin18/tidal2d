@@ -37,7 +37,7 @@ typedef struct Action Action;
 struct Instance {
 	char* name;
 	char* id;
-	SDL_Rect dst;
+	SDL_FRect dst;
 	texture texture;
 	font* font;
 	char* text;

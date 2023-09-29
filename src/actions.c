@@ -9,8 +9,8 @@
 /* Copy new active instance. See action documentation. */
 static void action_spawn(Engine* e, Instance* instance, char* args) {
 	char* object = args;
-	double x = *(double*)(args+strlen(object)+1);
-	double y = *(double*)(args+strlen(object)+1+sizeof(double));
+	float x = *(float*)(args+strlen(object)+1);
+	float y = *(float*)(args+strlen(object)+1+sizeof(float));
 	instance_copy(e, object, x, y);
 }
 
@@ -26,9 +26,9 @@ static void action_setvar(Engine* e, Instance* instance, char* args) {
 
 /* Do a Chipmunk "teleport". See action documentation */
 static void action_move(Engine* e, Instance* instance, char* args) {
-	double x = *(double*)args;
-	double y = *(double*)(args+sizeof(double));
-	bool relative = *(bool*)(args+(2*sizeof(double)));
+	float x = *(float*)args;
+	float y = *(float*)(args+sizeof(float));
+	bool relative = *(bool*)(args+(2*sizeof(float)));
 	if (relative) {
 		cpVect v = cpBodyGetPosition(instance->body);
 		cpVect rel = cpvadd(v, cpv(x, y));
@@ -38,15 +38,15 @@ static void action_move(Engine* e, Instance* instance, char* args) {
 
 /* Change a physics body velocity. See action documentation. */
 static void action_speed(Engine* e, Instance* instance, char* args) {
-	double h = *(double*)args;
-	double v = *(double*)(args+sizeof(double));
+	float h = *(float*)args;
+	float v = *(float*)(args+sizeof(float));
 	cpBodySetVelocity(instance->body, cpv(h, v));
 }
 
 /* Set the space's gravity. See action documentation. */
 static void action_gravity(Engine* e, Instance* instance, char* args) {
-	double h = *(double*)args;
-	double v = *(double*)(args+sizeof(double));
+	float h = *(float*)args;
+	float v = *(float*)(args+sizeof(float));
 	cpSpaceSetGravity(e->space, cpv(h, v));
 }
 
@@ -97,9 +97,9 @@ static Uint32 animation_callback(Uint32 interval, void* param) {
 
 /* Set animation frame timer. See action documentation. */
 static void action_animation(Engine* e, Instance* instance, char* args) {
-	int start = floor(*(double*)args);
-	int end = floor(*(double*)(args+sizeof(double)));
-	double time = *(double*)(args+(2*sizeof(double)));
+	int start = floor(*(float*)args);
+	int end = floor(*(float*)(args+sizeof(float)));
+	float time = *(float*)(args+(2*sizeof(float)));
 	if (start < 0 || end < 0 || time < 0 || end > instance->texture.frames-1) return;
 	instance->frame = start;
 	if (end > start) {
@@ -107,6 +107,13 @@ static void action_animation(Engine* e, Instance* instance, char* args) {
 		SDL_RemoveTimer(instance->timer);
 		instance->timer = SDL_AddTimer(time*1000, animation_callback, instance);
 	}
+}
+
+/* Set the rotation of the object. See action documentation. */
+static void action_rotation(Engine* e, Instance* instance, char* args) {
+	cpFloat angle = *(float*)args;
+	cpBodySetAngle(instance->body, angle*(CP_PI/180));
+	cpSpaceReindexShapesForBody(e->space, instance->body);
 }
 
 /* Fill in memory with specified structure.
@@ -124,6 +131,7 @@ static char* args_generator(zpl_json_object* json, size_t n, ...) {
 		char* name = va_arg(list, char*);
 		zpl_adt_type type = va_arg(list, zpl_adt_type);
 		zpl_json_object* key = zpl_adt_query(json, name);
+		float f; bool b;
 		if (key == NULL) {
 			ERROR("Required action parameter missing: %s", name);
 			return NULL;
@@ -140,17 +148,18 @@ static char* args_generator(zpl_json_object* json, size_t n, ...) {
 				ERROR("Action parameter wrong type: %s", name);
 				return NULL;
 			}
-			size += sizeof(double);
-			double d = key->integer;
-			if (key->type == type) src = &d;
-			else src = &key->real;
+			size += sizeof(float);
+			if (key->type == type) f = key->integer;
+			else f = key->real;
+			src = &f;
 		} else if (type == ZPL_ADT_TYPE_REAL) {
 			if (key->props != ZPL_ADT_PROPS_TRUE && key->props != ZPL_ADT_PROPS_FALSE) {
 				ERROR("Action parameter wrong type: %s", name);
 				return NULL;
 			}
 			size += sizeof(bool);
-			src = &key->real;
+			b = key->real;
+			src = &b;
 		} else {
 			ERROR("Not a supported type");
 			return NULL;
@@ -237,6 +246,12 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 			args_generator(json, 3, "start", ZPL_ADT_TYPE_INTEGER, "end", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
 		action->run = &action_animation;
+
+	} else if (strcmp(type, "rotation") == 0) {
+		action->args =
+			args_generator(json, 1, "angle", ZPL_ADT_TYPE_INTEGER);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_rotation;
 
 	} else return ERROR("Invalid action type found");
 	return 0;
