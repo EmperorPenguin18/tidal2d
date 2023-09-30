@@ -46,6 +46,30 @@ static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *dat
 }
 
 int action_api(lua_State* L);
+int action_rotation_api(lua_State* L);
+
+int quit_api(lua_State* L) {
+	Engine* e = lua_touserdata(L, 1);
+	if (e == NULL) return 0;
+	lua_pushboolean(L, !e->running);
+	return 1;
+}
+
+int mouse_api(lua_State* L) {
+	int x, y;
+	SDL_GetMouseState(&x, &y);
+	lua_pushinteger(L, x);
+	lua_pushinteger(L, y);
+	return 2;
+}
+
+int player_pos(lua_State* L) {
+	Instance* instance = lua_touserdata(L, 1);
+	if (instance == NULL) return 0;
+	lua_pushnumber(L, instance->dst.x);
+	lua_pushnumber(L, instance->dst.y);
+	return 2;
+}
 
 /* Setup libraries */
 static int setup_env(Engine* e) {
@@ -89,6 +113,14 @@ static int setup_env(Engine* e) {
 	luaL_openlibs(e->L);
 	lua_pushcfunction(e->L, action_api);
 	lua_setglobal(e->L, "action");
+	lua_pushcfunction(e->L, quit_api);
+	lua_setglobal(e->L, "quit");
+	lua_pushcfunction(e->L, mouse_api);
+	lua_setglobal(e->L, "mouse_state");
+	lua_pushcfunction(e->L, player_pos);
+	lua_setglobal(e->L, "player_pos");
+	lua_pushcfunction(e->L, action_rotation_api);
+	lua_setglobal(e->L, "action_rotation");
 #ifndef NDEBUG
 	e->fps = malloc(sizeof(float));
 	e->vars = realloc(e->vars, sizeof(var));
@@ -411,6 +443,10 @@ void engine_cleanup(Engine* e) {
 		free(e->vars[i].data);
 	}*/
 	if (e->vars) { free(e->vars); e->vars = NULL; }
+	if (e->cursor) { SDL_FreeCursor(e->cursor); e->cursor = NULL; }
+	for (size_t i = 0; i < e->thread_num; i++) {
+		SDL_WaitThread(e->threads[i], NULL);
+	}
 	lua_close(e->L);
 	cpSpaceFree(e->space); e->space = NULL;
 	SDL_CloseAudioDevice(e->audiodev);

@@ -49,6 +49,9 @@ struct Engine {
 	size_t var_num;
 	SDL_TimerID timers[10];
 	bool timer_triggered[10];
+	SDL_Cursor* cursor;
+	SDL_Thread** threads;
+	size_t thread_num;
 };
 typedef struct Engine Engine;
 

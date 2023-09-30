@@ -2,12 +2,14 @@ cmake_minimum_required(VERSION 3.15)
 project(tidal2d)
 
 option(STATIC "Build the game to work as a single binary" OFF)
+option(PROFILING "Enable gprof" OFF)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 	set(STATIC ON)
 endif()
 
 message(STATUS "Static build: ${STATIC}")
+message(STATUS "Profiling: ${PROFILING}")
 message(STATUS "Platform: ${CMAKE_SYSTEM_NAME}")
 
 if (STATIC)
@@ -25,6 +27,13 @@ else()
 	set(BUILD_SHARED ON CACHE BOOL "Build chipmunk shared")
 	set(BUILD_STATIC OFF CACHE BOOL "Don't build chipmunk static")
 	set(LUA_ENABLE_SHARED ON CACHE BOOL "Build Lua shared")
+endif()
+
+if (PROFILING)
+	set(CMAKE_CXX_FLAGS "-pg")
+	set(CMAKE_C_FLAGS "-pg")
+	set(CMAKE_EXE_LINKER_FLAGS "-pg")
+	set(CMAKE_SHARED_LINKER_FLAGS "-pg")
 endif()
 
 add_executable(tidal2d)

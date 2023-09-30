@@ -11,6 +11,12 @@ static void action_spawn(Engine* e, Instance* instance, char* args) {
 	char* object = args;
 	float x = *(float*)(args+strlen(object)+1);
 	float y = *(float*)(args+strlen(object)+1+sizeof(float));
+	bool relative = *(bool*)(args+strlen(object)+1+(2*sizeof(float)));
+	if (relative && instance->body) {
+		cpVect v = cpBodyGetPosition(instance->body);
+		x += v.x;
+		y += v.y;
+	}
 	instance_copy(e, object, x, y);
 }
 
@@ -24,6 +30,7 @@ static void action_move(Engine* e, Instance* instance, char* args) {
 	float x = *(float*)args;
 	float y = *(float*)(args+sizeof(float));
 	bool relative = *(bool*)(args+(2*sizeof(float)));
+	if (!instance->body) return;
 	if (relative) {
 		cpVect v = cpBodyGetPosition(instance->body);
 		cpVect rel = cpvadd(v, cpv(x, y));
@@ -107,8 +114,10 @@ static void action_animation(Engine* e, Instance* instance, char* args) {
 /* Set the rotation of the object. See action documentation. */
 static void action_rotation(Engine* e, Instance* instance, char* args) {
 	cpFloat angle = *(float*)args;
-	cpBodySetAngle(instance->body, angle*(CP_PI/180));
-	cpSpaceReindexShapesForBody(e->space, instance->body);
+	if (instance->body) {
+		cpBodySetAngle(instance->body, angle*(CP_PI/180));
+		cpSpaceReindexShapesForBody(e->space, instance->body);
+	}
 }
 
 /* Set a global variable to arbitray data. See action documentation. */
@@ -217,22 +226,53 @@ static void action_lua(Engine* e, Instance* instance, char* args) {
 	lua_getglobal(e->L, function);
 	lua_pushlightuserdata(e->L, e);
 	lua_pushlightuserdata(e->L, instance);
-	lua_pcall(e->L, 2, 0, 0);
+	if (lua_pcall(e->L, 2, 0, 0) != 0)
+		ERROR("error running function `%s': %s", function, lua_tostring(e->L, -1));
 }
 
 static int thread_function(void* L) {
-	lua_pcall(L, 2, 0, 0);
+	if (lua_pcall(L, 2, 0, 0) != 0);
+		ERROR("error running function: %s", lua_tostring(L, -1));
+	lua_closethread(L, NULL);
 	return 0;
 }
 
 /* Run a Lua function in another thread. See action documentation. */
 static void action_lua_async(Engine* e, Instance* instance, char* args) {
 	char* function = args;
-	/*lua_getglobal(e->L, function);
-	lua_pushlightuserdata(e->L, e);
-	lua_pushlightuserdata(e->L, instance);
-	SDL_CreateThread(thread_function, function, e->L);*/
-	SDL_Log("Not implemented");
+	lua_State* L = lua_newthread(e->L);
+	lua_getglobal(L, function);
+	lua_pushlightuserdata(L, e);
+	lua_pushlightuserdata(L, instance);
+	e->threads = realloc(e->threads, (e->thread_num+1)*sizeof(SDL_Thread*));
+	e->threads[e->thread_num] = SDL_CreateThread(thread_function, function, L);
+	e->thread_num++;
+}
+
+/* Set the cursor image. See action documentation. */
+static void action_cursor(Engine* e, Instance* instance, char* args) {
+	SDL_Surface* surface = (SDL_Surface*)args;
+	if (e->cursor) SDL_FreeCursor(e->cursor);
+	e->cursor = SDL_CreateColorCursor(surface, surface->w/2, surface->h/2);
+	SDL_SetCursor(e->cursor);
+}
+
+/* Set the window size. See action documentation. */
+static void action_window(Engine* e, Instance* instance, char* args) {
+	float w = *(float*)args;
+	float h = *(float*)(args+sizeof(float));
+	if (w < 0 || h < 0) return;
+	e->win_rect.w = w;
+	e->win_rect.h = h;
+	SDL_SetWindowMinimumSize(e->window, w, h);
+	SDL_SetWindowSize(e->window, w, h);
+}
+
+static void action_point(Engine* e, Instance* instance, char* args) {
+	int x, y;
+	SDL_GetMouseState(&x, &y);
+	float angle = atan2(y - instance->dst.y, instance->dst.x - x);
+	action_rotation(NULL, instance, (char*)&angle);
 }
 
 /* Fill in memory with specified structure.
@@ -302,58 +342,66 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 
 	if (strcmp(type, "spawn") == 0) {
 		action->args =
-			args_generator(json, 3, "object", ZPL_ADT_TYPE_STRING, "x", ZPL_ADT_TYPE_INTEGER, "y", ZPL_ADT_TYPE_INTEGER);
+			args_generator(json, 4, "object", ZPL_ADT_TYPE_STRING, "x", ZPL_ADT_TYPE_INTEGER, "y", ZPL_ADT_TYPE_INTEGER, "relative", ZPL_ADT_TYPE_REAL);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_spawn;
 
 	} else if (strcmp(type, "destroy") == 0) {
 		action->args = NULL;
+		action->free = 0;
 		action->run = &action_destroy;
 
 	} else if (strcmp(type, "move") == 0) {
 		action->args =
 			args_generator(json, 3, "x", ZPL_ADT_TYPE_INTEGER, "y", ZPL_ADT_TYPE_INTEGER, "relative", ZPL_ADT_TYPE_REAL);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_move;
 
 	} else if (strcmp(type, "speed") == 0) {
 		action->args =
 			args_generator(json, 2, "h", ZPL_ADT_TYPE_INTEGER, "v", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_speed;
 
 	} else if (strcmp(type, "gravity") == 0) {
 		action->args =
 			args_generator(json, 2, "h", ZPL_ADT_TYPE_INTEGER, "v", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_gravity;
 
 	} else if (strcmp(type, "sound") == 0) {
 		char* file = args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
-		action->args = malloc(sizeof(SDL_AudioSpec));
 		for (size_t i = 0; i < assets_num; i++) {
 			if (strcmp(assets[i].name, file) == 0) {
-				memcpy(action->args, assets[i].data, sizeof(SDL_AudioSpec));
+				action->args = assets[i].data;
 				break;
 			}
 			if (i == assets_num - 1) return ERROR("Sound file not found");
 		}
+		free(file);
+		action->free = 0;
 		action->run = &action_sound;
 
 	} else if (strcmp(type, "music") == 0) {
 		char* file = args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
-		action->args = malloc(sizeof(SDL_AudioSpec));
 		for (size_t i = 0; i < assets_num; i++) {
 			if (strcmp(assets[i].name, file) == 0) {
-				memcpy(action->args, assets[i].data, sizeof(SDL_AudioSpec));
+				action->args = assets[i].data;
 				break;
 			}
 			if (i == assets_num - 1) return ERROR("Music file not found");
 		}
+		free(file);
+		action->free = 0;
 		action->run = &action_music;
 
 	} else if (strcmp(type, "close") == 0) {
 		action->args = NULL;
+		action->free = 0;
 		action->run = &action_close;
 
 	/*} else if (strcmp(type->string, "checkui") == 0) {
@@ -365,67 +413,104 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		action->args =
 			args_generator(json, 3, "start", ZPL_ADT_TYPE_INTEGER, "end", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_animation;
 
 	} else if (strcmp(type, "rotation") == 0) {
 		action->args =
 			args_generator(json, 1, "angle", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_rotation;
 
 	} else if (strcmp(type, "variable") == 0) {
 		action->args =
 			args_generator(json, 2, "name", ZPL_ADT_TYPE_STRING, "string", ZPL_ADT_TYPE_STRING, "number", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_variable;
 
 	} else if (strcmp(type, "save") == 0) {
 		action->args =
 			args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_save;
 
 	} else if (strcmp(type, "load") == 0) {
 		action->args =
 			args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_load;
 
 	} else if (strcmp(type, "timer") == 0) {
 		action->args =
 			args_generator(json, 2, "num", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_timer;
 
 	} else if (strcmp(type, "color") == 0) {
 		action->args =
 			args_generator(json, 3, "r", ZPL_ADT_TYPE_INTEGER, "g", ZPL_ADT_TYPE_INTEGER, "b", ZPL_ADT_TYPE_INTEGER);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_colour;
 
 	} else if (strcmp(type, "uri") == 0) {
 		action->args =
 			args_generator(json, 1, "link", ZPL_ADT_TYPE_STRING);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_uri;
 
 	} else if (strcmp(type, "reload") == 0) {
 		action->args = NULL;
+		action->free = 0;
 		action->run = &action_reload;
 
 	} else if (strcmp(type, "lua") == 0) {
 		action->args =
 			args_generator(json, 1, "function", ZPL_ADT_TYPE_STRING);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_lua;
 
 	} else if (strcmp(type, "lua_async") == 0) {
 		action->args =
 			args_generator(json, 1, "function", ZPL_ADT_TYPE_STRING);
 		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
 		action->run = &action_lua_async;
 
+	} else if (strcmp(type, "cursor") == 0) {
+		char* file = args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
+		for (size_t i = 0; i < assets_num; i++) {
+			if (strcmp(assets[i].name, file) == 0) {
+				action->args = assets[i].data;
+				break;
+			}
+			if (i == assets_num - 1) return ERROR("Image file not found");
+		}
+		free(file);
+		action->free = 0;
+		action->run = &action_cursor;
+
+	} else if (strcmp(type, "window") == 0) {
+		action->args =
+			args_generator(json, 2, "w", ZPL_ADT_TYPE_INTEGER, "h", ZPL_ADT_TYPE_INTEGER);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->free = 1;
+		action->run = &action_window;
+
+	} else if (strcmp(type, "point") == 0) {
+		action->args = NULL;
+		action->free = 0;
+		action->run = &action_point;
+
 	} else return ERROR("Invalid action type found");
+	//free(type);
 	return 0;
 }
 
@@ -438,12 +523,14 @@ int action_init(Action* action, zpl_json_object* json, Asset* assets, const size
 
 /* Cleanup an Action struct. */
 void action_cleanup(Action* action) {
-	free(action->args);
+	if (action->free) free(action->args);
 }
 
 int action_api(lua_State *L) {
 	Engine* e = lua_touserdata(L, 1);
+	if (e == NULL) return 0;
 	Instance* instance = lua_touserdata(L, 2);
+	if (instance == NULL) return 0;
 	const char* string = luaL_checkstring(L, 3);
 	char* str = malloc(strlen(string)+1);
 	strcpy(str, string);
@@ -455,5 +542,13 @@ int action_api(lua_State *L) {
 	zpl_json_free(&json);
 	action.run(e, instance, action.args);
 	action_cleanup(&action);
+	return 0;
+}
+
+int action_rotation_api(lua_State *L) {
+	Instance* instance = lua_touserdata(L, 1);
+	if (instance == NULL) return 0;
+	float angle = luaL_checknumber(L, 2);
+	action_rotation(NULL, instance, (char*)&angle);
 	return 0;
 }
