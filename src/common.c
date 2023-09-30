@@ -52,7 +52,7 @@ int ERROR(const char* format, ...) {
 	va_list arg;
 	va_start(arg, format);
 	//fprintf(stderr, "[%s: %d] ", __FILE__, __LINE__);
-	SDL_LogError(SDL_LOG_CATEGORY_ERROR, format, arg);
+	SDL_LogMessageV(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR, format, arg);
 	va_end(arg);
 	return -1;
 }

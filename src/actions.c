@@ -211,6 +211,30 @@ static void action_reload(Engine* e, Instance* instance, char* args) {
 	action_close(e, NULL, NULL);
 }
 
+/* Run a Lua function. See action documentation. */
+static void action_lua(Engine* e, Instance* instance, char* args) {
+	char* function = args;
+	lua_getglobal(e->L, function);
+	lua_pushlightuserdata(e->L, e);
+	lua_pushlightuserdata(e->L, instance);
+	lua_pcall(e->L, 2, 0, 0);
+}
+
+static int thread_function(void* L) {
+	lua_pcall(L, 2, 0, 0);
+	return 0;
+}
+
+/* Run a Lua function in another thread. See action documentation. */
+static void action_lua_async(Engine* e, Instance* instance, char* args) {
+	char* function = args;
+	/*lua_getglobal(e->L, function);
+	lua_pushlightuserdata(e->L, e);
+	lua_pushlightuserdata(e->L, instance);
+	SDL_CreateThread(thread_function, function, e->L);*/
+	SDL_Log("Not implemented");
+}
+
 /* Fill in memory with specified structure.
  * Variadic arguments must be in pairs of two.
  * STRING is string, INTEGER is number, and REAL is bool.
@@ -274,6 +298,7 @@ static char* args_generator(zpl_json_object* json, size_t n, ...) {
 /* Based on the type provided, setup args so calling an action is faster. */
 static int action_handler(Action* action, zpl_json_object* json, Asset* assets, const size_t assets_num) {
 	char* type = args_generator(json, 1, "type", ZPL_ADT_TYPE_STRING);
+	if (type == NULL) return -1;
 
 	if (strcmp(type, "spawn") == 0) {
 		action->args =
@@ -388,6 +413,18 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		action->args = NULL;
 		action->run = &action_reload;
 
+	} else if (strcmp(type, "lua") == 0) {
+		action->args =
+			args_generator(json, 1, "function", ZPL_ADT_TYPE_STRING);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_lua;
+
+	} else if (strcmp(type, "lua_async") == 0) {
+		action->args =
+			args_generator(json, 1, "function", ZPL_ADT_TYPE_STRING);
+		if (action->args == NULL) return ERROR("Args generator failed");
+		action->run = &action_lua_async;
+
 	} else return ERROR("Invalid action type found");
 	return 0;
 }
@@ -402,4 +439,21 @@ int action_init(Action* action, zpl_json_object* json, Asset* assets, const size
 /* Cleanup an Action struct. */
 void action_cleanup(Action* action) {
 	free(action->args);
+}
+
+int action_api(lua_State *L) {
+	Engine* e = lua_touserdata(L, 1);
+	Instance* instance = lua_touserdata(L, 2);
+	const char* string = luaL_checkstring(L, 3);
+	char* str = malloc(strlen(string)+1);
+	strcpy(str, string);
+	Action action;
+	zpl_json_object json;
+	zpl_json_parse(&json, str, zpl_heap());
+	if (action_init(&action, &json, e->assets, e->assets_num) < 0) return 0; //should improve error handling later
+	free(str);
+	zpl_json_free(&json);
+	action.run(e, instance, action.args);
+	action_cleanup(&action);
+	return 0;
 }

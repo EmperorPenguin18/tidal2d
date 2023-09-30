@@ -45,6 +45,8 @@ static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *dat
 	return 0;
 }
 
+int action_api(lua_State* L);
+
 /* Setup libraries */
 static int setup_env(Engine* e) {
 	time_t t;
@@ -85,6 +87,8 @@ static int setup_env(Engine* e) {
 	col_hand->userData = e; //Set the collision handler's user data to the context
 	e->L = luaL_newstate();
 	luaL_openlibs(e->L);
+	lua_pushcfunction(e->L, action_api);
+	lua_setglobal(e->L, "action");
 #ifndef NDEBUG
 	e->fps = malloc(sizeof(float));
 	e->vars = realloc(e->vars, sizeof(var));
@@ -258,6 +262,8 @@ static int spawn_level(Engine* e) {
 				e->first_layer = layer;
 			}
 			e->inert_ins_num++;
+		} else if (strcmp(getextension(e->assets[i].name), "lua") == 0) {
+			luaL_dostring(e->L, e->assets[i].data);
 		}
 	}
 	if (e->first) {

@@ -10,36 +10,8 @@
 		],
 		"creation": [
 			{
-				"type": "music",
-				"file": "background.ogg"
-			},
-			{
-				"type": "gravity",
-				"h": 0,
-				"v": 50
-			},
-			{
-				"type": "spawn",
-				"object": "rocket.json",
-				"x": 50,
-				"y": 240
-			},
-			{
-				"type": "spawn",
-				"object": "obstacle_t.json",
-				"x": 400,
-				"y": 50
-			},
-			{
-				"type": "spawn",
-				"object": "obstacle.json",
-				"x": 400,
-				"y": 400
-			},
-			{
-				"type": "timer",
-				"num": 0,
-				"time": 10
+				"type": "lua",
+				"function": "create_room"
 			}
 		],
 		"timer_0": [
