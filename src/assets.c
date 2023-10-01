@@ -79,7 +79,7 @@ static void svg_destroy(void* in) {
 
 /* .json handler */
 static int json_create(void** out, void* in, const size_t len) {
-	json* json = malloc(sizeof(json));
+	json* json = malloc(sizeof(struct json));
 	json->root = malloc(sizeof(zpl_json_object));
 	zpl_json_error err = zpl_json_parse(json->root, in, zpl_heap());
 	if (err != ZPL_JSON_ERROR_NONE && err != ZPL_JSON_ERROR_OBJECT_END_PAIR_MISMATCHED) return ERROR("Json parse failed with: %d", err);
@@ -98,7 +98,7 @@ static void json_destroy(void* in) {
 
 /* .ttf handler */
 static int ttf_create(void** out, void* in, const size_t len) {
-	font* font = malloc(sizeof(font));
+	font* font = malloc(sizeof(struct font));
 	font->data = in;
 	font->len = len;
 	*out = font;

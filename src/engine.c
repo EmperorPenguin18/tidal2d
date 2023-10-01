@@ -17,18 +17,23 @@ void event_handler(Engine* e, event_t ev, Instance* caller) {
 	if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
 	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION ||
 	ev == TIDAL_EVENT_ANIMATION || ev == TIDAL_EVENT_CLICKON) {
+		/* Hacky solution, need to fix all this later */
+		Instance instance = *caller;
 		//Special case: some events only trigger based on instance id
-		for (size_t j = 0; j < caller->actions_num[ev]; j++) {
-			Action* action = caller->actions[ev] + j;
+		for (size_t j = 0; j < instance.actions_num[ev]; j++) {
+			Action* action = instance.actions[ev] + j;
 			action->run(e, caller, action->args);
 		}
 		return;
 	}
-	for (size_t i = 0; i < e->instances_num; i++) {
-		Instance* ins = e->instances + i;
-		for (size_t j = 0; j < ins->actions_num[ev]; j++) {
-			Action* action = ins->actions[ev] + j;
-			action->run(e, ins, action->args);
+	/* Hacky solution, need to fix all this later */
+	size_t num = e->instances_num;
+	for (size_t i = 0; i < num; i++) {
+		/* Hacky solution, need to fix all this later */
+		Instance ins = e->instances[i];
+		for (size_t j = 0; j < ins.actions_num[ev]; j++) {
+			Action* action = ins.actions[ev] + j;
+			action->run(e, e->instances+i, action->args);
 		}
 	}
 }
@@ -36,13 +41,13 @@ void event_handler(Engine* e, event_t ev, Instance* caller) {
 /* Part of how Chipmunk2D handles collisions. Is called every time two things collide.
  * Will trigger an event for each body colliding.
  */
-static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
+static void collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
 	CP_ARBITER_GET_SHAPES(arb, a, b);
 	bool* colliding = cpShapeGetUserData(a);
 	*colliding = true;
 	colliding = cpShapeGetUserData(b);
 	*colliding = true;
-	return 0;
+	//return 0;
 }
 
 int action_api(lua_State* L);
@@ -107,7 +112,7 @@ static int setup_env(Engine* e) {
 	SDL_free(name);
 	e->space = cpSpaceNew();
 	cpCollisionHandler* col_hand = cpSpaceAddDefaultCollisionHandler(e->space);
-	col_hand->beginFunc = collisionCallback;
+	col_hand->postSolveFunc = collisionCallback;
 	col_hand->userData = e; //Set the collision handler's user data to the context
 	e->L = luaL_newstate();
 	luaL_openlibs(e->L);
@@ -190,7 +195,7 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 
 /* Creates an instance that will actually show up in the world. Probably slow. */
 void instance_copy(Engine* e, const char* name, float x, float y) {
-	e->instances = (Instance*)realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
+	e->instances = realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
 	Instance* instance = NULL;
 	for (size_t i = 0; i < e->inert_ins_num; i++) { /* Not super efficient */
 		if (strcmp(e->inert_ins[i].name, name) == 0) {

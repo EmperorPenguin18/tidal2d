@@ -12,6 +12,7 @@ static void action_spawn(Engine* e, Instance* instance, char* args) {
 	float x = *(float*)(args+strlen(object)+1);
 	float y = *(float*)(args+strlen(object)+1+sizeof(float));
 	bool relative = *(bool*)(args+strlen(object)+1+(2*sizeof(float)));
+	//for (size_t i = 0; i < 9999; i++) printf("%d", relative); //debug
 	if (relative && instance->body) {
 		cpVect v = cpBodyGetPosition(instance->body);
 		x += v.x;
@@ -36,6 +37,7 @@ static void action_move(Engine* e, Instance* instance, char* args) {
 		cpVect rel = cpvadd(v, cpv(x, y));
 		cpBodySetPosition(instance->body, rel);
 	} else cpBodySetPosition(instance->body, cpv(x, y));
+	//cpSpaceReindexShapesForBody(e->space, instance->body);
 }
 
 /* Change a physics body velocity. See action documentation. */
@@ -510,7 +512,7 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		action->run = &action_point;
 
 	} else return ERROR("Invalid action type found");
-	//free(type);
+	free(type);
 	return 0;
 }
 

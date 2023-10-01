@@ -125,6 +125,14 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_KEYP_S;
 	} else if (strcmp(string, "keyp_d") == 0) {
 		return TIDAL_EVENT_KEYP_D;
+	} else if (strcmp(string, "keyr_w") == 0) {
+		return TIDAL_EVENT_KEYR_W;
+	} else if (strcmp(string, "keyr_a") == 0) {
+		return TIDAL_EVENT_KEYR_A;
+	} else if (strcmp(string, "keyr_s") == 0) {
+		return TIDAL_EVENT_KEYR_S;
+	} else if (strcmp(string, "keyr_d") == 0) {
+		return TIDAL_EVENT_KEYR_D;
 	} else if (strcmp(string, "keyp_wd") == 0) {
 		return TIDAL_EVENT_KEYP_WD;
 	} else if (strcmp(string, "keyp_sd") == 0) {
@@ -346,6 +354,22 @@ event_t get_event() {
 						break;
 					case SDLK_LEFT:
 						return TIDAL_EVENT_KEY_LEFT;
+						break;
+				}
+				break;
+			case SDL_KEYUP:
+				switch (event.key.keysym.sym) {
+					case SDLK_w:
+						return TIDAL_EVENT_KEYR_W;
+						break;
+					case SDLK_a:
+						return TIDAL_EVENT_KEYR_A;
+						break;
+					case SDLK_s:
+						return TIDAL_EVENT_KEYR_S;
+						break;
+					case SDLK_d:
+						return TIDAL_EVENT_KEYR_D;
 						break;
 				}
 				break;
