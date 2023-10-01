@@ -44,7 +44,9 @@ static void action_move(Engine* e, Instance* instance, char* args) {
 static void action_speed(Engine* e, Instance* instance, char* args) {
 	float h = *(float*)args;
 	float v = *(float*)(args+sizeof(float));
-	cpBodySetVelocity(instance->body, cpv(h, v));
+	if (instance->body) {
+		cpBodySetVelocity(instance->body, cpv(h, v));
+	}
 }
 
 /* Set the space's gravity. See action documentation. */
@@ -270,12 +272,12 @@ static void action_window(Engine* e, Instance* instance, char* args) {
 	SDL_SetWindowSize(e->window, w, h);
 }
 
-static void action_point(Engine* e, Instance* instance, char* args) {
+/*static void* action_point(Engine* e, Instance* instance, char* args) {
 	int x, y;
 	SDL_GetMouseState(&x, &y);
 	float angle = atan2(y - instance->dst.y, instance->dst.x - x);
 	action_rotation(NULL, instance, (char*)&angle);
-}
+}*/
 
 /* Fill in memory with specified structure.
  * Variadic arguments must be in pairs of two.
@@ -322,7 +324,7 @@ static char* args_generator(zpl_json_object* json, size_t n, ...) {
 			b = key->real;
 			src = &b;
 		} else {
-			ERROR("Not a supported type");
+			ERROR("Not a supported type: %d", type);
 			return NULL;
 		}
 		char* tmp = realloc(args, size);
@@ -345,7 +347,7 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	if (strcmp(type, "spawn") == 0) {
 		action->args =
 			args_generator(json, 4, "object", ZPL_ADT_TYPE_STRING, "x", ZPL_ADT_TYPE_INTEGER, "y", ZPL_ADT_TYPE_INTEGER, "relative", ZPL_ADT_TYPE_REAL);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_spawn;
 
@@ -357,21 +359,21 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	} else if (strcmp(type, "move") == 0) {
 		action->args =
 			args_generator(json, 3, "x", ZPL_ADT_TYPE_INTEGER, "y", ZPL_ADT_TYPE_INTEGER, "relative", ZPL_ADT_TYPE_REAL);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_move;
 
 	} else if (strcmp(type, "speed") == 0) {
 		action->args =
 			args_generator(json, 2, "h", ZPL_ADT_TYPE_INTEGER, "v", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_speed;
 
 	} else if (strcmp(type, "gravity") == 0) {
 		action->args =
 			args_generator(json, 2, "h", ZPL_ADT_TYPE_INTEGER, "v", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_gravity;
 
@@ -414,56 +416,56 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	} else if (strcmp(type, "animation") == 0) {
 		action->args =
 			args_generator(json, 3, "start", ZPL_ADT_TYPE_INTEGER, "end", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_animation;
 
 	} else if (strcmp(type, "rotation") == 0) {
 		action->args =
 			args_generator(json, 1, "angle", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_rotation;
 
 	} else if (strcmp(type, "variable") == 0) {
 		action->args =
 			args_generator(json, 2, "name", ZPL_ADT_TYPE_STRING, "string", ZPL_ADT_TYPE_STRING, "number", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_variable;
 
 	} else if (strcmp(type, "save") == 0) {
 		action->args =
 			args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_save;
 
 	} else if (strcmp(type, "load") == 0) {
 		action->args =
 			args_generator(json, 1, "file", ZPL_ADT_TYPE_STRING);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_load;
 
 	} else if (strcmp(type, "timer") == 0) {
 		action->args =
 			args_generator(json, 2, "num", ZPL_ADT_TYPE_INTEGER, "time", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_timer;
 
 	} else if (strcmp(type, "color") == 0) {
 		action->args =
 			args_generator(json, 3, "r", ZPL_ADT_TYPE_INTEGER, "g", ZPL_ADT_TYPE_INTEGER, "b", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_colour;
 
 	} else if (strcmp(type, "uri") == 0) {
 		action->args =
 			args_generator(json, 1, "link", ZPL_ADT_TYPE_STRING);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_uri;
 
@@ -475,14 +477,14 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	} else if (strcmp(type, "lua") == 0) {
 		action->args =
 			args_generator(json, 1, "function", ZPL_ADT_TYPE_STRING);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_lua;
 
 	} else if (strcmp(type, "lua_async") == 0) {
 		action->args =
 			args_generator(json, 1, "function", ZPL_ADT_TYPE_STRING);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_lua_async;
 
@@ -502,16 +504,16 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 	} else if (strcmp(type, "window") == 0) {
 		action->args =
 			args_generator(json, 2, "w", ZPL_ADT_TYPE_INTEGER, "h", ZPL_ADT_TYPE_INTEGER);
-		if (action->args == NULL) return ERROR("Args generator failed");
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_window;
 
-	} else if (strcmp(type, "point") == 0) {
+	/*} else if (strcmp(type, "point") == 0) {
 		action->args = NULL;
 		action->free = 0;
-		action->run = &action_point;
+		action->run = &action_point;*/
 
-	} else return ERROR("Invalid action type found");
+	} else return ERROR("Invalid action type found: %s", type);
 	free(type);
 	return 0;
 }
@@ -553,4 +555,22 @@ int action_rotation_api(lua_State *L) {
 	float angle = luaL_checknumber(L, 2);
 	action_rotation(NULL, instance, (char*)&angle);
 	return 0;
+}
+
+int spawn_api(lua_State *L) {
+	Engine* e = lua_touserdata(L, 1);
+	if (e == NULL) return 0;
+	Instance* instance = lua_touserdata(L, 2);
+	if (instance == NULL) return 0;
+	const char* object = luaL_checkstring(L, 3);
+	float x = luaL_checknumber(L, 4);
+	float y = luaL_checknumber(L, 5);
+	bool relative = lua_toboolean(L, 6);
+	if (relative && instance->body) {
+		cpVect v = cpBodyGetPosition(instance->body);
+		x += v.x;
+		y += v.y;
+	}
+	lua_pushlightuserdata(L, instance_copy(e, object, x, y));
+	return 1;
 }

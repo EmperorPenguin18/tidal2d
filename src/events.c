@@ -6,7 +6,27 @@
 
 event_t str2ev(const char* string) {
 	if (strcmp(string, "collision") == 0) {
-		return TIDAL_EVENT_COLLISION;
+		return TIDAL_EVENT_COLLISION_0;
+	} else if (strcmp(string, "collision_0") == 0) {
+		return TIDAL_EVENT_COLLISION_0;
+	} else if (strcmp(string, "collision_1") == 0) {
+		return TIDAL_EVENT_COLLISION_1;
+	} else if (strcmp(string, "collision_2") == 0) {
+		return TIDAL_EVENT_COLLISION_2;
+	} else if (strcmp(string, "collision_3") == 0) {
+		return TIDAL_EVENT_COLLISION_3;
+	} else if (strcmp(string, "collision_4") == 0) {
+		return TIDAL_EVENT_COLLISION_4;
+	} else if (strcmp(string, "collision_5") == 0) {
+		return TIDAL_EVENT_COLLISION_5;
+	} else if (strcmp(string, "collision_6") == 0) {
+		return TIDAL_EVENT_COLLISION_6;
+	} else if (strcmp(string, "collision_7") == 0) {
+		return TIDAL_EVENT_COLLISION_7;
+	} else if (strcmp(string, "collision_8") == 0) {
+		return TIDAL_EVENT_COLLISION_8;
+	} else if (strcmp(string, "collision_9") == 0) {
+		return TIDAL_EVENT_COLLISION_9;
 	} else if (strcmp(string, "quit") == 0) {
 		return TIDAL_EVENT_QUIT;
 	} else if (strcmp(string, "key_f1") == 0) {
@@ -157,6 +177,8 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_LEAVE;
 	} else if (strcmp(string, "animation_complete") == 0) {
 		return TIDAL_EVENT_ANIMATION;
+	} else if (strcmp(string, "timer") == 0) {
+		return TIDAL_EVENT_TIMER_0;
 	} else if (strcmp(string, "timer_0") == 0) {
 		return TIDAL_EVENT_TIMER_0;
 	} else if (strcmp(string, "timer_1") == 0) {

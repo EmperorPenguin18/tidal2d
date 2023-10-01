@@ -16,6 +16,7 @@ enum physics_t {
 	PHYSICS_BOX_STATIC,
 	PHYSICS_TRIANGLE,
 	PHYSICS_TRIANGLE_STATIC,
+	PHYSICS_GHOST,
 	PHYSICS_NUM
 };
 typedef enum physics_t physics_t;
@@ -47,10 +48,11 @@ struct Instance {
 	size_t layer;
 	Action* actions[EVENTS_NUM];
 	size_t actions_num[EVENTS_NUM];
-	bool* colliding;
+	int* colliding;
 	size_t frame;
 	int end_frame;
 	SDL_TimerID timer;
+	cpCollisionType collision_type;
 };
 typedef struct Instance Instance;
 

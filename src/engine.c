@@ -15,7 +15,7 @@
 /* Loops over actions and runs them. */
 void event_handler(Engine* e, event_t ev, Instance* caller) {
 	if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
-	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION ||
+	ev == TIDAL_EVENT_LEAVE || (ev >= TIDAL_EVENT_COLLISION_0 && ev <= TIDAL_EVENT_COLLISION_9) ||
 	ev == TIDAL_EVENT_ANIMATION || ev == TIDAL_EVENT_CLICKON) {
 		/* Hacky solution, need to fix all this later */
 		Instance instance = *caller;
@@ -27,31 +27,40 @@ void event_handler(Engine* e, event_t ev, Instance* caller) {
 		return;
 	}
 	/* Hacky solution, need to fix all this later */
+	Instance* instances = malloc(e->instances_num*sizeof(Instance));
+	memcpy(instances, e->instances, e->instances_num*sizeof(Instance));
 	size_t num = e->instances_num;
 	for (size_t i = 0; i < num; i++) {
 		/* Hacky solution, need to fix all this later */
-		Instance ins = e->instances[i];
-		for (size_t j = 0; j < ins.actions_num[ev]; j++) {
-			Action* action = ins.actions[ev] + j;
+		Instance* ins = instances+i;
+		for (size_t j = 0; j < ins->actions_num[ev]; j++) {
+			Action* action = ins->actions[ev] + j;
 			action->run(e, e->instances+i, action->args);
 		}
 	}
+	free(instances);
 }
 
 /* Part of how Chipmunk2D handles collisions. Is called every time two things collide.
  * Will trigger an event for each body colliding.
  */
-static void collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
+static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
 	CP_ARBITER_GET_SHAPES(arb, a, b);
-	bool* colliding = cpShapeGetUserData(a);
-	*colliding = true;
-	colliding = cpShapeGetUserData(b);
-	*colliding = true;
-	//return 0;
+	cpCollisionType type_a = cpShapeGetCollisionType(a);
+	cpCollisionType type_b = cpShapeGetCollisionType(b);
+	if (type_a < 10 && type_a >= 0 && type_b < 10 && type_b >= 0) {
+		int* colliding = cpShapeGetUserData(a);
+		*colliding = type_b;
+		colliding = cpShapeGetUserData(b);
+		*colliding = type_a;
+		return cpTrue;
+	}
+	return cpFalse;
 }
 
 int action_api(lua_State* L);
 int action_rotation_api(lua_State* L);
+int spawn_api(lua_State* L);
 
 int quit_api(lua_State* L) {
 	Engine* e = lua_touserdata(L, 1);
@@ -112,7 +121,7 @@ static int setup_env(Engine* e) {
 	SDL_free(name);
 	e->space = cpSpaceNew();
 	cpCollisionHandler* col_hand = cpSpaceAddDefaultCollisionHandler(e->space);
-	col_hand->postSolveFunc = collisionCallback;
+	col_hand->beginFunc = collisionCallback;
 	col_hand->userData = e; //Set the collision handler's user data to the context
 	e->L = luaL_newstate();
 	luaL_openlibs(e->L);
@@ -126,6 +135,8 @@ static int setup_env(Engine* e) {
 	lua_setglobal(e->L, "player_pos");
 	lua_pushcfunction(e->L, action_rotation_api);
 	lua_setglobal(e->L, "action_rotation");
+	lua_pushcfunction(e->L, spawn_api);
+	lua_setglobal(e->L, "spawn");
 #ifndef NDEBUG
 	e->fps = malloc(sizeof(float));
 	e->vars = realloc(e->vars, sizeof(var));
@@ -194,7 +205,7 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 }
 
 /* Creates an instance that will actually show up in the world. Probably slow. */
-void instance_copy(Engine* e, const char* name, float x, float y) {
+Instance* instance_copy(Engine* e, const char* name, float x, float y) {
 	e->instances = realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
 	Instance* instance = NULL;
 	for (size_t i = 0; i < e->inert_ins_num; i++) { /* Not super efficient */
@@ -203,7 +214,7 @@ void instance_copy(Engine* e, const char* name, float x, float y) {
 			break;
 		}
 	}
-	if (!instance) return; // uh-oh
+	if (!instance) return NULL;
 
 	if (instance->layer+1 > e->layers_num) {//If the specified layer is higher than the highest, fill them all out
 		e->layers = (size_t*)realloc(e->layers, (instance->layer+1)*sizeof(size_t));
@@ -255,14 +266,21 @@ void instance_copy(Engine* e, const char* name, float x, float y) {
 			verts[2].y = h/2;
 			instance->shape = cpSpaceAddShape(e->space, cpPolyShapeNewRaw(instance->body, 3, verts, 0));
 			cpShapeSetFriction(instance->shape, 1.0);
+		} else if (instance->physics == PHYSICS_GHOST) {
+			instance->body = cpBodyNewKinematic();
+			instance->shape = NULL;
 		}
 		cpBodySetPosition(instance->body, cpv(x, y));
-		instance->colliding = malloc(sizeof(bool));
-		*(instance->colliding) = false;
-		cpShapeSetUserData(instance->shape, instance->colliding);
+		instance->colliding = malloc(sizeof(int));
+		*(instance->colliding) = -1;
+		if (instance->shape) {
+			cpShapeSetUserData(instance->shape, instance->colliding);
+			cpShapeSetCollisionType(instance->shape, instance->collision_type);
+		}
 	}
 
 	event_handler(e, TIDAL_EVENT_CREATION, instance);
+	return instance;
 }
 
 /* Removes instance from world. Doesn't shrink array */
@@ -293,7 +311,7 @@ static int spawn_level(Engine* e) {
 			e->inert_ins = tmp;
 			size_t layer = SIZE_MAX;
 			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->inert_ins+e->inert_ins_num, &layer) < 0)
-				return ERROR("Instance creation failed");
+				return ERROR("Instance creation failed: %s", e->assets[i].name);
 			if (layer < e->first_layer) {
 				e->first = e->inert_ins[e->inert_ins_num].name;
 				e->first_layer = layer;
@@ -339,10 +357,11 @@ static void update(Engine* e) {
 				event_handler(e, TIDAL_EVENT_LEAVE, instance);
 				continue;
 			}
-			bool* colliding = instance->colliding;
-			if (*colliding) {
-				*colliding = false;
-				event_handler(e, TIDAL_EVENT_COLLISION, instance);
+			int* colliding = instance->colliding;
+			if (*colliding >= 0) {
+				int col = *colliding;
+				*colliding = -1;
+				event_handler(e, TIDAL_EVENT_COLLISION_0+col, instance);
 				continue;
 			}
 		}
