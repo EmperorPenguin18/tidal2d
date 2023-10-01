@@ -137,6 +137,7 @@ static int setup_env(Engine* e) {
 	lua_setglobal(e->L, "action_rotation");
 	lua_pushcfunction(e->L, spawn_api);
 	lua_setglobal(e->L, "spawn");
+	e->start_time = SDL_GetPerformanceCounter();
 #ifndef NDEBUG
 	e->fps = malloc(sizeof(float));
 	e->vars = realloc(e->vars, sizeof(var));
@@ -400,7 +401,10 @@ static void draw(Engine* e) {
 			src.y = instance->texture.y[instance->frame];
 			src.w = instance->dst.w;
 			src.h = instance->dst.h;
-			double angle = cpBodyGetAngle(instance->body)*(180/CP_PI);
+			//double angle = cpBodyGetAngle(instance->body)*(180/CP_PI);
+			double angle;
+			if (instance->body) angle = cpBodyGetAngle(instance->body)*(180/CP_PI);
+			else angle = 0;
 			//SDL_FPoint center; cpVect v = cpBodyLocalToWorld(instance->body, cpBodyGetCenterOfGravity(instance->body)); center.x = v.x; center.y = v.y;
 			SDL_RenderCopyExF(e->renderer, instance->texture.atlas, &src, &instance->dst, angle, NULL, SDL_FLIP_NONE);
 		}
@@ -413,6 +417,13 @@ static void draw(Engine* e) {
 		SDL_RenderDrawRectF(e->renderer, &instance->dst);
 #endif
 	}
+	/* Show time */
+	/*STBTTF_Font* font = STBTTF_OpenFontRW(e->renderer, SDL_RWFromConstMem(e->instances[0].font->data, e->instances[0].font->len), 28);
+	char* str = malloc(4);
+	sprintf(str, "%d", (SDL_GetPerformanceCounter() - e->start_time)/SDL_GetPerformanceFrequency());
+	STBTTF_RenderText(e->renderer, font, 384, 28, str);
+	STBTTF_CloseFont(font);
+	free(str);*/
 	SDL_RenderPresent(e->renderer);
 }
 

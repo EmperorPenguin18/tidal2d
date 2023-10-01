@@ -52,6 +52,7 @@ struct Engine {
 	SDL_Cursor* cursor;
 	SDL_Thread** threads;
 	size_t thread_num;
+	Uint64 start_time;
 };
 typedef struct Engine Engine;
 
