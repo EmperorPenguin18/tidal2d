@@ -176,7 +176,7 @@ static int lua_create(void** out, void* in, const size_t len) {
 }
 
 static void lua_destroy(void* in) {
-	free(in);
+	SDL_free(in);
 }
 
 /* Based on extension given, sets the function pointers for an asset. */

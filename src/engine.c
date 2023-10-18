@@ -319,7 +319,8 @@ static int spawn_level(Engine* e) {
 			}
 			e->inert_ins_num++;
 		} else if (strcmp(getextension(e->assets[i].name), "lua") == 0) {
-			luaL_dostring(e->L, e->assets[i].data);
+			if (luaL_dostring(e->L, e->assets[i].data) != 0)
+				return ERROR("Doing Lua failed: %s\n%s\n%s", e->assets[i].name, e->assets[i].data, lua_tostring(e->L, -1));
 		}
 	}
 	if (e->first) {

@@ -42,13 +42,9 @@ target_sources(tidal2d PRIVATE src/actions.c src/assets.c src/common.c src/engin
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 set(CMAKE_CXX_FLAGS_DEBUG_INIT "-Wall")
+set(CMAKE_CXX_FLAGS_DEBUG_INIT "-pedantic")
 
 include(FetchContent)
-
-# Math dependency
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	target_link_libraries(tidal2d PRIVATE m)
-endif()
 
 # SDL2 dependency
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
@@ -73,7 +69,7 @@ else()
 		FetchContent_Declare(
 			SDL
 			GIT_REPOSITORY https://github.com/libsdl-org/SDL
-			GIT_TAG 8a5ba43d00252c6c8b33c9aa4f1048222955ab4d # 2.28.3
+			GIT_TAG 8a5ba43d00252c6c8b33c9aa4f1048222955ab4d # 2.28.4
 		)
 		FetchContent_GetProperties(SDL)
 		if(NOT SDL_POPULATED)
@@ -102,6 +98,17 @@ else()
 			target_link_libraries(tidal2d PRIVATE SDL2 SDL2main)
 		endif()
 	endif()
+endif()
+
+# Platform linking
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	target_link_libraries(tidal2d PRIVATE m)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	target_link_libraries(tidal2d PRIVATE ssp)
+	target_link_libraries(tidal2d PRIVATE winmm)
+	target_link_libraries(tidal2d PRIVATE imm32)
+	target_link_libraries(tidal2d PRIVATE version)
+	target_link_libraries(tidal2d PRIVATE setupapi)
 endif()
 
 # Chipmunk2D dependency
