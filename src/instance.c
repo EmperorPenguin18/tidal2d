@@ -129,6 +129,14 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 		strcpy(instance->text, text->string);
 	}
 
+	zpl_json_object* collision_type = zpl_adt_query(json, "collision_type");
+	if (collision_type == NULL) { //Collision type is optional
+		instance->collision_type = 0;
+	} else {
+		if (collision_type->type != ZPL_ADT_TYPE_INTEGER) return ERROR("Instance collision type isn't integer");
+		instance->collision_type = collision_type->integer;
+	}
+
 	instance->body = NULL;
 	instance->shape = NULL;
 	instance->colliding = NULL;
@@ -165,7 +173,7 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 				Action* tmp = (Action*)realloc(instance->actions[ev], (instance->actions_num[ev]+1)*sizeof(Action));
 				if (tmp == NULL) return ERROR("Out of memory");
 				instance->actions[ev] = tmp;
-				if (action_init(instance->actions[ev]+instance->actions_num[ev], action, assets, assets_num) < 0) return ERROR("Action init failed");
+				if (action_init(instance->actions[ev]+instance->actions_num[ev], action, assets, assets_num) < 0) return ERROR("Action init failed: %s", instance->name);
 				instance->actions_num[ev]++;
 			}
 		}

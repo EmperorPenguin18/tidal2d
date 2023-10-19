@@ -27,19 +27,21 @@ else()
 	set(LUA_ENABLE_SHARED ON CACHE BOOL "Build Lua shared")
 endif()
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+	set(CMAKE_C_CLANG_TIDY clang-tidy -checks=-*)
+endif()
+
 add_executable(tidal2d)
 
 target_sources(tidal2d PRIVATE src/actions.c src/assets.c src/common.c src/engine.c src/events.c src/filesystem.c src/stbttf.c src/instance.c src/main.c src/zpl.c)
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-set(CMAKE_CXX_FLAGS_DEBUG_INIT "-Wall")
+set(CMAKE_C_FLAGS_DEBUG_INIT "-Wall")
+set(CMAKE_C_FLAGS_DEBUG_INIT "-pedantic")
+set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE})
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include ${CMAKE_SOURCE_DIR}/src/force_link_glibc_2.23.h")
 
 include(FetchContent)
-
-# Math dependency
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	target_link_libraries(tidal2d PRIVATE m)
-endif()
 
 # SDL2 dependency
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
@@ -64,7 +66,7 @@ else()
 		FetchContent_Declare(
 			SDL
 			GIT_REPOSITORY https://github.com/libsdl-org/SDL
-			GIT_TAG 8a5ba43d00252c6c8b33c9aa4f1048222955ab4d # 2.28.3
+			GIT_TAG cc016b0046d563287f0aa9f09b958b5e70d43696 # 2.28.4
 		)
 		FetchContent_GetProperties(SDL)
 		if(NOT SDL_POPULATED)
@@ -93,6 +95,17 @@ else()
 			target_link_libraries(tidal2d PRIVATE SDL2 SDL2main)
 		endif()
 	endif()
+endif()
+
+# Platform linking
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	target_link_libraries(tidal2d PRIVATE m)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	target_link_libraries(tidal2d PRIVATE ssp)
+	target_link_libraries(tidal2d PRIVATE winmm)
+	target_link_libraries(tidal2d PRIVATE imm32)
+	target_link_libraries(tidal2d PRIVATE version)
+	target_link_libraries(tidal2d PRIVATE setupapi)
 endif()
 
 # Chipmunk2D dependency

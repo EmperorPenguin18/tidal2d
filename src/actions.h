@@ -10,6 +10,7 @@
 struct Action {
 	char* args;
 	void(*run)(Engine*, Instance*, char*);
+	bool free;
 };
 //typedef is in instance.h
 

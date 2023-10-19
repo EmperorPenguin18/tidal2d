@@ -15,7 +15,7 @@
 /* Loops over actions and runs them. */
 void event_handler(Engine* e, event_t ev, Instance* caller) {
 	if (ev == TIDAL_EVENT_CREATION || ev == TIDAL_EVENT_DESTRUCTION ||
-	ev == TIDAL_EVENT_LEAVE || ev == TIDAL_EVENT_COLLISION ||
+	ev == TIDAL_EVENT_LEAVE || (ev >= TIDAL_EVENT_COLLISION_0 && ev <= TIDAL_EVENT_COLLISION_9) ||
 	ev == TIDAL_EVENT_ANIMATION || ev == TIDAL_EVENT_CLICKON) {
 		//Special case: some events only trigger based on instance id
 		for (size_t j = 0; j < caller->actions_num[ev]; j++) {
@@ -38,14 +38,21 @@ void event_handler(Engine* e, event_t ev, Instance* caller) {
  */
 static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *data) {
 	CP_ARBITER_GET_SHAPES(arb, a, b);
-	bool* colliding = cpShapeGetUserData(a);
-	*colliding = true;
-	colliding = cpShapeGetUserData(b);
-	*colliding = true;
-	return 0;
+	cpCollisionType type_a = cpShapeGetCollisionType(a);
+	cpCollisionType type_b = cpShapeGetCollisionType(b);
+	if (type_a < 10 && type_a >= 0 && type_b < 10 && type_b >= 0) {
+		int* colliding = cpShapeGetUserData(a);
+		*colliding = type_b;
+		colliding = cpShapeGetUserData(b);
+		*colliding = type_a;
+		return cpTrue;
+	}
+	return cpFalse;
 }
 
 int action_api(lua_State* L);
+int spawn_api(lua_State* L);
+int register_action(lua_State* L);
 
 /* Setup libraries */
 static int setup_env(Engine* e) {
@@ -89,6 +96,10 @@ static int setup_env(Engine* e) {
 	luaL_openlibs(e->L);
 	lua_pushcfunction(e->L, action_api);
 	lua_setglobal(e->L, "action");
+	lua_pushcfunction(e->L, spawn_api);
+	lua_setglobal(e->L, "spawn");
+	lua_pushcfunction(e->L, register_action);
+	lua_setglobal(e->L, "register_action");
 #ifndef NDEBUG
 	e->fps = malloc(sizeof(float));
 	e->vars = realloc(e->vars, sizeof(var));
@@ -157,8 +168,8 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 }
 
 /* Creates an instance that will actually show up in the world. Probably slow. */
-void instance_copy(Engine* e, const char* name, float x, float y) {
-	e->instances = (Instance*)realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
+Instance* instance_copy(Engine* e, const char* name, float x, float y) {
+	e->instances = realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
 	Instance* instance = NULL;
 	for (size_t i = 0; i < e->inert_ins_num; i++) { /* Not super efficient */
 		if (strcmp(e->inert_ins[i].name, name) == 0) {
@@ -166,7 +177,7 @@ void instance_copy(Engine* e, const char* name, float x, float y) {
 			break;
 		}
 	}
-	if (!instance) return; // uh-oh
+	if (!instance) return NULL;
 
 	if (instance->layer+1 > e->layers_num) {//If the specified layer is higher than the highest, fill them all out
 		e->layers = (size_t*)realloc(e->layers, (instance->layer+1)*sizeof(size_t));
@@ -220,12 +231,14 @@ void instance_copy(Engine* e, const char* name, float x, float y) {
 			cpShapeSetFriction(instance->shape, 1.0);
 		}
 		cpBodySetPosition(instance->body, cpv(x, y));
-		instance->colliding = malloc(sizeof(bool));
-		*(instance->colliding) = false;
+		instance->colliding = malloc(sizeof(int));
+		*(instance->colliding) = -1;
 		cpShapeSetUserData(instance->shape, instance->colliding);
+		cpShapeSetCollisionType(instance->shape, instance->collision_type);
 	}
 
 	event_handler(e, TIDAL_EVENT_CREATION, instance);
+	return instance;
 }
 
 /* Removes instance from world. Doesn't shrink array */
@@ -256,14 +269,15 @@ static int spawn_level(Engine* e) {
 			e->inert_ins = tmp;
 			size_t layer = SIZE_MAX;
 			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->inert_ins+e->inert_ins_num, &layer) < 0)
-				return ERROR("Instance creation failed");
+				return ERROR("Instance creation failed: %s", e->assets[i].name);
 			if (layer < e->first_layer) {
 				e->first = e->inert_ins[e->inert_ins_num].name;
 				e->first_layer = layer;
 			}
 			e->inert_ins_num++;
 		} else if (strcmp(getextension(e->assets[i].name), "lua") == 0) {
-			luaL_dostring(e->L, e->assets[i].data);
+			if (luaL_dostring(e->L, e->assets[i].data) != 0)
+				return ERROR("Doing Lua failed: %s\n%s\n%s", e->assets[i].name, e->assets[i].data, lua_tostring(e->L, -1));
 		}
 	}
 	if (e->first) {
@@ -302,10 +316,11 @@ static void update(Engine* e) {
 				event_handler(e, TIDAL_EVENT_LEAVE, instance);
 				continue;
 			}
-			bool* colliding = instance->colliding;
-			if (*colliding) {
-				*colliding = false;
-				event_handler(e, TIDAL_EVENT_COLLISION, instance);
+			int* colliding = instance->colliding;
+			if (*colliding >= 0) {
+				int col = *colliding;
+				*colliding = -1;
+				event_handler(e, TIDAL_EVENT_COLLISION_0+col, instance);
 				continue;
 			}
 		}
@@ -344,7 +359,9 @@ static void draw(Engine* e) {
 			src.y = instance->texture.y[instance->frame];
 			src.w = instance->dst.w;
 			src.h = instance->dst.h;
-			double angle = cpBodyGetAngle(instance->body)*(180/CP_PI);
+			double angle;
+			if (instance->body) angle = cpBodyGetAngle(instance->body)*(180/CP_PI);
+			else angle = 0;
 			//SDL_FPoint center; cpVect v = cpBodyLocalToWorld(instance->body, cpBodyGetCenterOfGravity(instance->body)); center.x = v.x; center.y = v.y;
 			SDL_RenderCopyExF(e->renderer, instance->texture.atlas, &src, &instance->dst, angle, NULL, SDL_FLIP_NONE);
 		}
@@ -411,6 +428,7 @@ void engine_cleanup(Engine* e) {
 		free(e->vars[i].data);
 	}*/
 	if (e->vars) { free(e->vars); e->vars = NULL; }
+	if (e->cursor) { SDL_FreeCursor(e->cursor); e->cursor = NULL; }
 	lua_close(e->L);
 	cpSpaceFree(e->space); e->space = NULL;
 	SDL_CloseAudioDevice(e->audiodev);

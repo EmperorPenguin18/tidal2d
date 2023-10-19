@@ -49,6 +49,7 @@ struct Engine {
 	size_t var_num;
 	SDL_TimerID timers[10];
 	bool timer_triggered[10];
+	SDL_Cursor* cursor;
 };
 typedef struct Engine Engine;
 
@@ -57,7 +58,7 @@ Engine* engine_init(int, char*[]);
 void engine_run(void*);
 void engine_cleanup(Engine*);
 
-void instance_copy(Engine*, const char*, float, float);
+Instance* instance_copy(Engine*, const char*, float, float);
 void instance_destroy(Engine*, Instance*);
 void event_handler(Engine*, event_t, Instance*);
 

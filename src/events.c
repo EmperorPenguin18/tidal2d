@@ -6,7 +6,27 @@
 
 event_t str2ev(const char* string) {
 	if (strcmp(string, "collision") == 0) {
-		return TIDAL_EVENT_COLLISION;
+		return TIDAL_EVENT_COLLISION_0;
+	} else if (strcmp(string, "collision_0") == 0) {
+		return TIDAL_EVENT_COLLISION_0;
+	} else if (strcmp(string, "collision_1") == 0) {
+		return TIDAL_EVENT_COLLISION_1;
+	} else if (strcmp(string, "collision_2") == 0) {
+		return TIDAL_EVENT_COLLISION_2;
+	} else if (strcmp(string, "collision_3") == 0) {
+		return TIDAL_EVENT_COLLISION_3;
+	} else if (strcmp(string, "collision_4") == 0) {
+		return TIDAL_EVENT_COLLISION_4;
+	} else if (strcmp(string, "collision_5") == 0) {
+		return TIDAL_EVENT_COLLISION_5;
+	} else if (strcmp(string, "collision_6") == 0) {
+		return TIDAL_EVENT_COLLISION_6;
+	} else if (strcmp(string, "collision_7") == 0) {
+		return TIDAL_EVENT_COLLISION_7;
+	} else if (strcmp(string, "collision_8") == 0) {
+		return TIDAL_EVENT_COLLISION_8;
+	} else if (strcmp(string, "collision_9") == 0) {
+		return TIDAL_EVENT_COLLISION_9;
 	} else if (strcmp(string, "quit") == 0) {
 		return TIDAL_EVENT_QUIT;
 	} else if (strcmp(string, "key_f1") == 0) {
@@ -109,10 +129,44 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_KEY_SPACE;
 	} else if (strcmp(string, "key_enter") == 0) {
 		return TIDAL_EVENT_KEY_ENTER;
+	} else if (strcmp(string, "key_up") == 0) {
+		return TIDAL_EVENT_KEY_UP;
+	} else if (strcmp(string, "key_right") == 0) {
+		return TIDAL_EVENT_KEY_RIGHT;
+	} else if (strcmp(string, "key_down") == 0) {
+		return TIDAL_EVENT_KEY_DOWN;
+	} else if (strcmp(string, "key_left") == 0) {
+		return TIDAL_EVENT_KEY_LEFT;
+	} else if (strcmp(string, "keyp_w") == 0) {
+		return TIDAL_EVENT_KEYP_W;
+	} else if (strcmp(string, "keyp_a") == 0) {
+		return TIDAL_EVENT_KEYP_A;
+	} else if (strcmp(string, "keyp_s") == 0) {
+		return TIDAL_EVENT_KEYP_S;
+	} else if (strcmp(string, "keyp_d") == 0) {
+		return TIDAL_EVENT_KEYP_D;
+	} else if (strcmp(string, "keyr_w") == 0) {
+		return TIDAL_EVENT_KEYR_W;
+	} else if (strcmp(string, "keyr_a") == 0) {
+		return TIDAL_EVENT_KEYR_A;
+	} else if (strcmp(string, "keyr_s") == 0) {
+		return TIDAL_EVENT_KEYR_S;
+	} else if (strcmp(string, "keyr_d") == 0) {
+		return TIDAL_EVENT_KEYR_D;
+	} else if (strcmp(string, "keyp_wd") == 0) {
+		return TIDAL_EVENT_KEYP_WD;
+	} else if (strcmp(string, "keyp_sd") == 0) {
+		return TIDAL_EVENT_KEYP_SD;
+	} else if (strcmp(string, "keyp_as") == 0) {
+		return TIDAL_EVENT_KEYP_AS;
+	} else if (strcmp(string, "keyp_wa") == 0) {
+		return TIDAL_EVENT_KEYP_WA;
 	} else if (strcmp(string, "mouse_left") == 0) {
 		return TIDAL_EVENT_MOUSE_LEFT;
 	} else if (strcmp(string, "mouse_right") == 0) {
 		return TIDAL_EVENT_MOUSE_RIGHT;
+	} else if (strcmp(string, "mouse_motion") == 0) {
+		return TIDAL_EVENT_MOUSE_MOTION;
 	} else if (strcmp(string, "creation") == 0) {
 		return TIDAL_EVENT_CREATION;
 	} else if (strcmp(string, "destruction") == 0) {
@@ -123,6 +177,8 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_LEAVE;
 	} else if (strcmp(string, "animation_complete") == 0) {
 		return TIDAL_EVENT_ANIMATION;
+	} else if (strcmp(string, "timer") == 0) {
+		return TIDAL_EVENT_TIMER_0;
 	} else if (strcmp(string, "timer_0") == 0) {
 		return TIDAL_EVENT_TIMER_0;
 	} else if (strcmp(string, "timer_1") == 0) {
@@ -152,175 +208,225 @@ event_t str2ev(const char* string) {
 /* Check for events from the player */
 event_t get_event() {
 	SDL_Event event;
-	SDL_PollEvent(&event);
-	switch (event.type) {
-		case SDL_QUIT:
-			return TIDAL_EVENT_QUIT;
-			break;
-		case SDL_KEYDOWN:
-			switch (event.key.keysym.sym) {
-				case SDLK_F1:
-					return TIDAL_EVENT_KEY_F1;
-					break;
-				case SDLK_F2:
-					return TIDAL_EVENT_KEY_F2;
-					break;
-				case SDLK_F3:
-					return TIDAL_EVENT_KEY_F3;
-					break;
-				case SDLK_F4:
-					return TIDAL_EVENT_KEY_F4;
-					break;
-				case SDLK_F5:
-					return TIDAL_EVENT_KEY_F5;
-					break;
-				case SDLK_F6:
-					return TIDAL_EVENT_KEY_F6;
-					break;
-				case SDLK_F7:
-					return TIDAL_EVENT_KEY_F7;
-					break;
-				case SDLK_F8:
-					return TIDAL_EVENT_KEY_F8;
-					break;
-				case SDLK_F9:
-					return TIDAL_EVENT_KEY_F9;
-					break;
-				case SDLK_F10:
-					return TIDAL_EVENT_KEY_F10;
-					break;
-				case SDLK_F11:
-					return TIDAL_EVENT_KEY_F11;
-					break;
-				case SDLK_F12:
-					return TIDAL_EVENT_KEY_F12;
-					break;
-				case SDLK_1:
-					return TIDAL_EVENT_KEY_1;
-					break;
-				case SDLK_2:
-					return TIDAL_EVENT_KEY_2;
-					break;
-				case SDLK_3:
-					return TIDAL_EVENT_KEY_3;
-					break;
-				case SDLK_4:
-					return TIDAL_EVENT_KEY_4;
-					break;
-				case SDLK_5:
-					return TIDAL_EVENT_KEY_5;
-					break;
-				case SDLK_6:
-					return TIDAL_EVENT_KEY_6;
-					break;
-				case SDLK_7:
-					return TIDAL_EVENT_KEY_7;
-					break;
-				case SDLK_8:
-					return TIDAL_EVENT_KEY_8;
-					break;
-				case SDLK_9:
-					return TIDAL_EVENT_KEY_9;
-					break;
-				case SDLK_0:
-					return TIDAL_EVENT_KEY_0;
-					break;
-				case SDLK_q:
-					return TIDAL_EVENT_KEY_Q;
-					break;
-				case SDLK_w:
-					return TIDAL_EVENT_KEY_W;
-					break;
-				case SDLK_e:
-					return TIDAL_EVENT_KEY_E;
-					break;
-				case SDLK_r:
-					return TIDAL_EVENT_KEY_R;
-					break;
-				case SDLK_t:
-					return TIDAL_EVENT_KEY_T;
-					break;
-				case SDLK_y:
-					return TIDAL_EVENT_KEY_Y;
-					break;
-				case SDLK_u:
-					return TIDAL_EVENT_KEY_U;
-					break;
-				case SDLK_i:
-					return TIDAL_EVENT_KEY_I;
-					break;
-				case SDLK_o:
-					return TIDAL_EVENT_KEY_O;
-					break;
-				case SDLK_p:
-					return TIDAL_EVENT_KEY_P;
-					break;
-				case SDLK_a:
-					return TIDAL_EVENT_KEY_A;
-					break;
-				case SDLK_s:
-					return TIDAL_EVENT_KEY_S;
-					break;
-				case SDLK_d:
-					return TIDAL_EVENT_KEY_D;
-					break;
-				case SDLK_f:
-					return TIDAL_EVENT_KEY_F;
-					break;
-				case SDLK_g:
-					return TIDAL_EVENT_KEY_G;
-					break;
-				case SDLK_h:
-					return TIDAL_EVENT_KEY_H;
-					break;
-				case SDLK_j:
-					return TIDAL_EVENT_KEY_J;
-					break;
-				case SDLK_k:
-					return TIDAL_EVENT_KEY_K;
-					break;
-				case SDLK_l:
-					return TIDAL_EVENT_KEY_L;
-					break;
-				case SDLK_z:
-					return TIDAL_EVENT_KEY_Z;
-					break;
-				case SDLK_x:
-					return TIDAL_EVENT_KEY_X;
-					break;
-				case SDLK_c:
-					return TIDAL_EVENT_KEY_C;
-					break;
-				case SDLK_v:
-					return TIDAL_EVENT_KEY_V;
-					break;
-				case SDLK_b:
-					return TIDAL_EVENT_KEY_B;
-					break;
-				case SDLK_n:
-					return TIDAL_EVENT_KEY_N;
-					break;
-				case SDLK_m:
-					return TIDAL_EVENT_KEY_M;
-					break;
-				case SDLK_SPACE:
-					return TIDAL_EVENT_KEY_SPACE;
-					break;
-				case SDLK_RETURN:
-					return TIDAL_EVENT_KEY_ENTER;
-					break;
-			}
-			break;
-		case SDL_MOUSEBUTTONUP:
-			switch (event.button.button) {
-				case SDL_BUTTON_LEFT:
-					return TIDAL_EVENT_MOUSE_LEFT;
-					break;
-				case SDL_BUTTON_RIGHT:
-					return TIDAL_EVENT_MOUSE_RIGHT;
-					break;
-			}
-			break;
+	if (SDL_PollEvent(&event)) {
+		switch (event.type) {
+			case SDL_QUIT:
+				return TIDAL_EVENT_QUIT;
+				break;
+			case SDL_KEYDOWN:
+				switch (event.key.keysym.sym) {
+					case SDLK_F1:
+						return TIDAL_EVENT_KEY_F1;
+						break;
+					case SDLK_F2:
+						return TIDAL_EVENT_KEY_F2;
+						break;
+					case SDLK_F3:
+						return TIDAL_EVENT_KEY_F3;
+						break;
+					case SDLK_F4:
+						return TIDAL_EVENT_KEY_F4;
+						break;
+					case SDLK_F5:
+						return TIDAL_EVENT_KEY_F5;
+						break;
+					case SDLK_F6:
+						return TIDAL_EVENT_KEY_F6;
+						break;
+					case SDLK_F7:
+						return TIDAL_EVENT_KEY_F7;
+						break;
+					case SDLK_F8:
+						return TIDAL_EVENT_KEY_F8;
+						break;
+					case SDLK_F9:
+						return TIDAL_EVENT_KEY_F9;
+						break;
+					case SDLK_F10:
+						return TIDAL_EVENT_KEY_F10;
+						break;
+					case SDLK_F11:
+						return TIDAL_EVENT_KEY_F11;
+						break;
+					case SDLK_F12:
+						return TIDAL_EVENT_KEY_F12;
+						break;
+					case SDLK_1:
+						return TIDAL_EVENT_KEY_1;
+						break;
+					case SDLK_2:
+						return TIDAL_EVENT_KEY_2;
+						break;
+					case SDLK_3:
+						return TIDAL_EVENT_KEY_3;
+						break;
+					case SDLK_4:
+						return TIDAL_EVENT_KEY_4;
+						break;
+					case SDLK_5:
+						return TIDAL_EVENT_KEY_5;
+						break;
+					case SDLK_6:
+						return TIDAL_EVENT_KEY_6;
+						break;
+					case SDLK_7:
+						return TIDAL_EVENT_KEY_7;
+						break;
+					case SDLK_8:
+						return TIDAL_EVENT_KEY_8;
+						break;
+					case SDLK_9:
+						return TIDAL_EVENT_KEY_9;
+						break;
+					case SDLK_0:
+						return TIDAL_EVENT_KEY_0;
+						break;
+					case SDLK_q:
+						return TIDAL_EVENT_KEY_Q;
+						break;
+					case SDLK_w:
+						return TIDAL_EVENT_KEY_W;
+						break;
+					case SDLK_e:
+						return TIDAL_EVENT_KEY_E;
+						break;
+					case SDLK_r:
+						return TIDAL_EVENT_KEY_R;
+						break;
+					case SDLK_t:
+						return TIDAL_EVENT_KEY_T;
+						break;
+					case SDLK_y:
+						return TIDAL_EVENT_KEY_Y;
+						break;
+					case SDLK_u:
+						return TIDAL_EVENT_KEY_U;
+						break;
+					case SDLK_i:
+						return TIDAL_EVENT_KEY_I;
+						break;
+					case SDLK_o:
+						return TIDAL_EVENT_KEY_O;
+						break;
+					case SDLK_p:
+						return TIDAL_EVENT_KEY_P;
+						break;
+					case SDLK_a:
+						return TIDAL_EVENT_KEY_A;
+						break;
+					case SDLK_s:
+						return TIDAL_EVENT_KEY_S;
+						break;
+					case SDLK_d:
+						return TIDAL_EVENT_KEY_D;
+						break;
+					case SDLK_f:
+						return TIDAL_EVENT_KEY_F;
+						break;
+					case SDLK_g:
+						return TIDAL_EVENT_KEY_G;
+						break;
+					case SDLK_h:
+						return TIDAL_EVENT_KEY_H;
+						break;
+					case SDLK_j:
+						return TIDAL_EVENT_KEY_J;
+						break;
+					case SDLK_k:
+						return TIDAL_EVENT_KEY_K;
+						break;
+					case SDLK_l:
+						return TIDAL_EVENT_KEY_L;
+						break;
+					case SDLK_z:
+						return TIDAL_EVENT_KEY_Z;
+						break;
+					case SDLK_x:
+						return TIDAL_EVENT_KEY_X;
+						break;
+					case SDLK_c:
+						return TIDAL_EVENT_KEY_C;
+						break;
+					case SDLK_v:
+						return TIDAL_EVENT_KEY_V;
+						break;
+					case SDLK_b:
+						return TIDAL_EVENT_KEY_B;
+						break;
+					case SDLK_n:
+						return TIDAL_EVENT_KEY_N;
+						break;
+					case SDLK_m:
+						return TIDAL_EVENT_KEY_M;
+						break;
+					case SDLK_SPACE:
+						return TIDAL_EVENT_KEY_SPACE;
+						break;
+					case SDLK_RETURN:
+						return TIDAL_EVENT_KEY_ENTER;
+						break;
+					case SDLK_UP:
+						return TIDAL_EVENT_KEY_UP;
+						break;
+					case SDLK_RIGHT:
+						return TIDAL_EVENT_KEY_RIGHT;
+						break;
+					case SDLK_DOWN:
+						return TIDAL_EVENT_KEY_DOWN;
+						break;
+					case SDLK_LEFT:
+						return TIDAL_EVENT_KEY_LEFT;
+						break;
+				}
+				break;
+			case SDL_KEYUP:
+				switch (event.key.keysym.sym) {
+					case SDLK_w:
+						return TIDAL_EVENT_KEYR_W;
+						break;
+					case SDLK_a:
+						return TIDAL_EVENT_KEYR_A;
+						break;
+					case SDLK_s:
+						return TIDAL_EVENT_KEYR_S;
+						break;
+					case SDLK_d:
+						return TIDAL_EVENT_KEYR_D;
+						break;
+				}
+				break;
+			case SDL_MOUSEBUTTONUP:
+				switch (event.button.button) {
+					case SDL_BUTTON_LEFT:
+						return TIDAL_EVENT_MOUSE_LEFT;
+						break;
+					case SDL_BUTTON_RIGHT:
+						return TIDAL_EVENT_MOUSE_RIGHT;
+						break;
+				}
+				break;
+			/*case SDL_MOUSEMOTION:
+				return TIDAL_EVENT_MOUSE_MOTION;
+				break;*/
+		}
+	}
+	const Uint8* keystate = SDL_GetKeyboardState(NULL);
+	if (keystate[SDL_SCANCODE_W] && keystate[SDL_SCANCODE_D]) {
+		return TIDAL_EVENT_KEYP_WD;
+	} else if (keystate[SDL_SCANCODE_S] && keystate[SDL_SCANCODE_D]) {
+		return TIDAL_EVENT_KEYP_SD;
+	} else if (keystate[SDL_SCANCODE_A] && keystate[SDL_SCANCODE_S]) {
+		return TIDAL_EVENT_KEYP_AS;
+	} else if (keystate[SDL_SCANCODE_W] && keystate[SDL_SCANCODE_A]) {
+		return TIDAL_EVENT_KEYP_WA;
+	} else if (keystate[SDL_SCANCODE_W]) {
+		return TIDAL_EVENT_KEYP_W;
+	} else if (keystate[SDL_SCANCODE_A]) {
+		return TIDAL_EVENT_KEYP_A;
+	} else if (keystate[SDL_SCANCODE_S]) {
+		return TIDAL_EVENT_KEYP_S;
+	} else if (keystate[SDL_SCANCODE_D]) {
+		return TIDAL_EVENT_KEYP_D;
 	}
 	return TIDAL_EVENT_ERR;
 }
