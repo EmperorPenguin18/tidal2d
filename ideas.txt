@@ -1,3 +1,11 @@
+Name ideas:
+Solenoid2D
+Soleno2D
+Helical2D
+Helix2D
+Coil2D
+Solenoid
+
 C --> C++
 SDL --> Sokol
 chipmunk --> physac
@@ -7,11 +15,10 @@ zpl --> custom
 custom instance handling --> entt
 Lua --> pocketpy
 
-no more json, all lua
-networking
-asset become class
+no more json, all python
+engine becomes class
+replace assets with components
 precompiled headers
 asset embedding becomes part of cmake process
-new repo, named something with coil
 actions are scripting api functions
 events only have one handler, provide info to script
