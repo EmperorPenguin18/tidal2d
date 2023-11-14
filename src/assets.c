@@ -11,7 +11,6 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include <nanosvgrast.h>
 
-//#include "sfx.h"
 #include "stbttf.h"
 
 #include "assets.h"
@@ -147,28 +146,6 @@ static void vorb_destroy(void* in) {
 	free(in);
 }
 
-/*static int sfx_create(void** out, void* in, const size_t len) {
-	Sfx sfx;
-	if (load_sfx(&sfx, in) < 0) return -1;
-	SDL_free(in);
-	void* wav;
-	size_t wav_len = 0;
-	if (sfx2wav(&wav, &wav_len, &sfx) < 0) return -1;
-	SDL_AudioSpec* spec = malloc(sizeof(SDL_AudioSpec));
-	Uint8* buffer;
-	Uint32 size;
-	spec = SDL_LoadWAV_RW(SDL_RWFromMem(wav, wav_len), 1, spec, &buffer, &size);
-	if (!spec) return -1;
-	spec->userdata = buffer;
-	free(wav);
-	*out = spec;
-	return 0;
-}
-
-static void sfx_destroy(void* in) {
-	free(in); //temp
-}*/
-
 /* .lua handler. No work is really done */
 static int lua_create(void** out, void* in, const size_t len) {
 	*out = in;
@@ -202,9 +179,6 @@ static int type_handler(Asset* asset, const char* ext) {
 	} else if (strcmp(ext, "ogg") == 0) {
 		asset->create = &vorb_create;
 		asset->destroy = &vorb_destroy;
-	/*} else if (strcmp(ext, "sfx") == 0) {
-		asset->create = &sfx_create;
-		asset->destroy = &sfx_destroy;*/
 	} else if (strcmp(ext, "lua") == 0) {
 		asset->create = &lua_create;
 		asset->destroy = &lua_destroy;

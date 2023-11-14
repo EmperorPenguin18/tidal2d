@@ -120,8 +120,9 @@ static zpl_isize tar_callback(zpl_file* archive, zpl_tar_record* file, void* use
 	if (!tmp) return ERROR("Out of memory");
 	e->assets = tmp;
 	zpl_isize size = 0;
-	void* bin = malloc(file->length);
+	char* bin = malloc(file->length+1);
 	memcpy(bin, zpl_file_stream_buf(archive, &size)+file->offset, file->length);
+	bin[file->length] = '\0';
 	if (asset_init(e->assets+e->assets_num, base(file->path), bin, file->length) < 0)
 		return ERROR("Asset init failed");
 	e->assets_num++;
@@ -169,72 +170,25 @@ static int load_assets(Engine* e, int argc, char* argv[]) {
 
 /* Creates an instance that will actually show up in the world. Probably slow. */
 Instance* instance_copy(Engine* e, const char* name, float x, float y) {
-	e->instances = realloc(e->instances, (e->instances_num+1)*sizeof(Instance));
-	Instance* instance = NULL;
-	for (size_t i = 0; i < e->inert_ins_num; i++) { /* Not super efficient */
-		if (strcmp(e->inert_ins[i].name, name) == 0) {
-			instance = e->inert_ins+i;
+	if (e->instances_num == MAX_INSTANCES) return NULL;
+	Asset* asset = NULL;
+	for (size_t i = 0; i < e->assets_num; i++) { /* Not super efficient */
+		if (strcmp(e->assets[i].name, name) == 0) {
+			asset = e->assets+i;
 			break;
 		}
 	}
-	if (!instance) return NULL;
+	if (!asset) return NULL;
 
-	if (instance->layer+1 > e->layers_num) {//If the specified layer is higher than the highest, fill them all out
-		e->layers = (size_t*)realloc(e->layers, (instance->layer+1)*sizeof(size_t));
-		for (size_t i = e->layers_num; i < instance->layer+1; i++) e->layers[i] = 0;
-		e->layers_num = instance->layer+1;
-	}
-	size_t sum = 0;
-	for (size_t i = 0; i < instance->layer+1; i++) sum += e->layers[i];//Get the spot where the new instance will slot in
-	e->layers[instance->layer]++;
-	//Make a spot in the array
-	for (size_t i = e->instances_num; i > sum; i--) e->instances[i] = e->instances[i - 1];
+	Instance* instance = e->instances+e->instances_num;
+	if (instance_create(asset, e->renderer, e->assets, e->assets_num, e->space, instance) < 0)
+		return NULL;
+	instance->id = e->instances_num;
 	e->instances_num++;
-	*(e->instances + sum) = *instance; //Shallow copy
-	instance = e->instances + sum;
-
-	instance->id = gen_uuid();
 	instance->dst.x = x;
 	instance->dst.y = y;
-	if (instance->physics != PHYSICS_NONE) {
-		cpFloat w = instance->dst.w;
-		cpFloat h = instance->dst.h;
-		if (instance->physics == PHYSICS_BOX) {
-			instance->body = cpSpaceAddBody(e->space, cpBodyNew(1, INFINITY));
-			instance->shape = cpSpaceAddShape(e->space, cpBoxShapeNew(instance->body, w, h, 0));
-			cpShapeSetFriction(instance->shape, 0.7);
-		} else if (instance->physics == PHYSICS_BOX_STATIC) {
-			instance->body = cpBodyNewKinematic();
-			instance->shape = cpSpaceAddShape(e->space, cpBoxShapeNew(instance->body, w, h, 0));
-			cpShapeSetFriction(instance->shape, 1.0);
-		} else if (instance->physics == PHYSICS_TRIANGLE) {
-			instance->body = cpSpaceAddBody(e->space, cpBodyNew(1, INFINITY));
-			cpVect verts[3];
-			verts[0].x = 0;
-			verts[0].y = -h/2;
-			verts[1].x = -w/2;
-			verts[1].y = h/2;
-			verts[2].x = w/2;
-			verts[2].y = h/2;
-			instance->shape = cpSpaceAddShape(e->space, cpPolyShapeNewRaw(instance->body, 3, verts, 0));
-			cpShapeSetFriction(instance->shape, 0.7);
-		} else if (instance->physics == PHYSICS_TRIANGLE_STATIC) {
-			instance->body = cpBodyNewKinematic();
-			cpVect verts[3];
-			verts[0].x = 0;
-			verts[0].y = -h/2;
-			verts[1].x = -w/2;
-			verts[1].y = h/2;
-			verts[2].x = w/2;
-			verts[2].y = h/2;
-			instance->shape = cpSpaceAddShape(e->space, cpPolyShapeNewRaw(instance->body, 3, verts, 0));
-			cpShapeSetFriction(instance->shape, 1.0);
-		}
+	if (instance->body) {
 		cpBodySetPosition(instance->body, cpv(x, y));
-		instance->colliding = malloc(sizeof(int));
-		*(instance->colliding) = -1;
-		cpShapeSetUserData(instance->shape, instance->colliding);
-		cpShapeSetCollisionType(instance->shape, instance->collision_type);
 	}
 
 	event_handler(e, TIDAL_EVENT_CREATION, instance);
@@ -245,43 +199,30 @@ Instance* instance_copy(Engine* e, const char* name, float x, float y) {
 void instance_destroy(Engine* e, Instance* instance) {
 	event_handler(e, TIDAL_EVENT_DESTRUCTION, instance);
 
-	free(instance->id); instance->id = NULL;
-	if (instance->shape) {
-		free(instance->colliding); instance->colliding = NULL;
-		cpSpaceRemoveShape(e->space, instance->shape);
-		if (cpBodyGetType(instance->body) != CP_BODY_TYPE_STATIC &&
-		cpBodyGetType(instance->body) != CP_BODY_TYPE_KINEMATIC) {
-			cpSpaceRemoveBody(e->space, instance->body);
-		}
-		cpShapeFree(instance->shape); instance->shape = NULL;
-		cpBodyFree(instance->body); instance->body = NULL;
-	}
-	e->layers[instance->layer] -= 1;
-	memset(instance, 0, sizeof(Instance));
+	instance_cleanup(e->space, instance);
 }
 
 /* Create all the objects, then spawn the first one. */
 static int spawn_level(Engine* e) {
+	char* first = NULL;
+	size_t first_layer = SIZE_MAX;
 	for (size_t i = 0; i < e->assets_num; i++) {
 		if (strcmp(getextension(e->assets[i].name), "json") == 0) {
-			Instance* tmp = (Instance*)realloc(e->inert_ins, (e->inert_ins_num+1)*sizeof(Instance));
-			if (!tmp) return ERROR("Out of memory");
-			e->inert_ins = tmp;
-			size_t layer = SIZE_MAX;
-			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->inert_ins+e->inert_ins_num, &layer) < 0)
+			Instance instance;
+			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->space, &instance) < 0)
 				return ERROR("Instance creation failed: %s", e->assets[i].name);
-			if (layer < e->first_layer) {
-				e->first = e->inert_ins[e->inert_ins_num].name;
-				e->first_layer = layer;
+			if (instance.layer < first_layer) {
+				first = instance.name;
+				first_layer = instance.layer;
 			}
-			e->inert_ins_num++;
+			instance_cleanup(e->space, &instance);
 		} else if (strcmp(getextension(e->assets[i].name), "lua") == 0) {
 			if (luaL_dostring(e->L, e->assets[i].data) != 0)
 				return ERROR("Doing Lua failed: %s\n%s\n%s", e->assets[i].name, e->assets[i].data, lua_tostring(e->L, -1));
 		}
 	}
-	if (e->first) {
-		instance_copy(e, e->first, 0, 0);
+	if (first) {
+		instance_copy(e, first, 0, 0);
 		e->running = true; //Something is actually in the game
 	}
 	return 0;
@@ -292,7 +233,6 @@ Engine* engine_init(int argc, char *argv[]) {
 	Engine* e = (Engine*)malloc(sizeof(Engine));
 	if (e == NULL) return NULL;
 	memset(e, 0, sizeof(Engine));
-	e->first_layer = SIZE_MAX;
 	if (setup_env(e) < 0) return NULL;
 	if (load_assets(e, argc, argv) < 0) return NULL;
 	if (spawn_level(e) < 0) return NULL;
@@ -324,11 +264,16 @@ static void update(Engine* e) {
 				continue;
 			}
 		}
-		if (instance->frame > instance->end_frame) {
-			instance->frame = instance->end_frame;
-			instance->end_frame = -1;
-			event_handler(e, TIDAL_EVENT_ANIMATION, instance);
-			continue;
+		if (instance->inc_frame) {
+			instance->inc_frame = false;
+			if (instance->frame == instance->end_frame) {
+				SDL_RemoveTimer(instance->timer);
+				instance->end_frame = -1;
+				event_handler(e, TIDAL_EVENT_ANIMATION, instance);
+				continue;
+			} else {
+				instance->frame++;
+			}
 		}
 		if (mouse && SDL_PointInFRect(&point, dst)) {
 			event_handler(e, TIDAL_EVENT_CLICKON, instance);
@@ -411,14 +356,8 @@ void engine_cleanup(Engine* e) {
 	}
 	free(e->assets); e->assets = NULL;
 	for (size_t i = 0; i < e->instances_num; i++) {
-		instance_destroy(e, e->instances+i);
+		instance_cleanup(e->space, e->instances+i);
 	}
-	free(e->instances); e->instances = NULL;
-	for (size_t i = 0; i < e->inert_ins_num; i++) {
-		instance_cleanup(e->inert_ins+i);
-	}
-	free(e->inert_ins); e->inert_ins = NULL;
-	free(e->layers); e->layers = NULL;
 	if (e->audio_buf.userdata) {
 		free(e->audio_buf.userdata);
 		e->audio_buf.userdata = NULL;

@@ -27,19 +27,17 @@ else()
 	set(LUA_ENABLE_SHARED ON CACHE BOOL "Build Lua shared")
 endif()
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-	set(CMAKE_C_CLANG_TIDY clang-tidy -checks=-*)
-endif()
+#if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+#	set(CMAKE_C_CLANG_TIDY clang-tidy -checks=-*)
+#endif()
 
 add_executable(tidal2d)
 
 target_sources(tidal2d PRIVATE src/actions.c src/assets.c src/common.c src/engine.c src/events.c src/filesystem.c src/stbttf.c src/instance.c src/main.c src/zpl.c)
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-set(CMAKE_C_FLAGS_DEBUG_INIT "-Wall")
-set(CMAKE_C_FLAGS_DEBUG_INIT "-pedantic")
+set(CMAKE_C_FLAGS_DEBUG_INIT "-Wall -pedantic")
 set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE})
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include ${CMAKE_SOURCE_DIR}/src/force_link_glibc_2.23.h")
 
 include(FetchContent)
 
@@ -222,5 +220,19 @@ else()
 	endif()
 endif()
 target_link_libraries(tidal2d PRIVATE lua)
+
+#glibc dependency
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	FetchContent_Declare(
+		glibc
+		GIT_REPOSITORY https://github.com/wheybags/glibc_version_header
+		GIT_TAG 60d54829f34f21dc440126ad5630e6a9789a48b2 # Commit May 3 2019
+	)
+	FetchContent_GetProperties(glibc)
+	if(NOT glibc_POPULATED)
+		FetchContent_Populate(glibc)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include ${glibc_SOURCE_DIR}/version_headers/x64/force_link_glibc_2.23.h")
+	endif()
+endif()
 
 install(TARGETS tidal2d DESTINATION bin)

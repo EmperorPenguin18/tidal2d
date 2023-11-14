@@ -94,8 +94,7 @@ static void action_close(Engine* e, Instance* instance, char* args) {
 
 static Uint32 animation_callback(Uint32 interval, void* param) {
 	Instance* instance = param;
-	instance->frame++;
-	if (instance->frame > instance->end_frame) return 0;
+	instance->inc_frame = true;
 	return interval;
 }
 

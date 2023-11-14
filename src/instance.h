@@ -10,16 +10,6 @@
 #include "assets.h"
 #include "events.h"
 
-enum physics_t {
-	PHYSICS_NONE,
-	PHYSICS_BOX,
-	PHYSICS_BOX_STATIC,
-	PHYSICS_TRIANGLE,
-	PHYSICS_TRIANGLE_STATIC,
-	PHYSICS_NUM
-};
-typedef enum physics_t physics_t;
-
 struct texture {
 	SDL_Texture* atlas;
 	int* x;
@@ -30,18 +20,19 @@ typedef struct texture texture;
 
 typedef struct Action Action;
 
+typedef unsigned long long ID;
+
 /* Instance definition. These are organized into layers
  * and looped over frequently. Could definitely use some
  * optimization
  */
 struct Instance {
 	char* name;
-	char* id;
+	ID id;
 	SDL_FRect dst;
 	texture texture;
 	font* font;
 	char* text;
-	physics_t physics;
 	cpBody* body;
 	cpShape* shape;
 	size_t layer;
@@ -50,12 +41,13 @@ struct Instance {
 	int* colliding;
 	size_t frame;
 	int end_frame;
+	bool inc_frame;
 	SDL_TimerID timer;
 	cpCollisionType collision_type;
 };
 typedef struct Instance Instance;
 
-int instance_create(Asset*, SDL_Renderer*, Asset*, size_t, Instance*, size_t*);
-void instance_cleanup(Instance*);
+int instance_create(Asset*, SDL_Renderer*, Asset*, size_t, cpSpace*, Instance*);
+void instance_cleanup(cpSpace*, Instance*);
 
 #endif

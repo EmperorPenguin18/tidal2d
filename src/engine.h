@@ -18,6 +18,8 @@ struct var {
 };
 typedef struct var var;
 
+#define MAX_INSTANCES 128
+
 /* The context struct. Keeps track of all state related
  * stuff, and asset arrays.
  */
@@ -32,14 +34,8 @@ struct Engine {
 	Asset* assets;
 	size_t assets_num;
 	cpSpace* space;
-	Instance* instances;
+	Instance instances[MAX_INSTANCES];
 	size_t instances_num;
-	Instance* inert_ins;
-	size_t inert_ins_num;
-	size_t* layers;
-	size_t layers_num;
-	char* first;
-	size_t first_layer;
 	SDL_AudioDeviceID audiodev;
 	SDL_AudioSpec audio_buf;
 	SDL_AudioSpec* music;

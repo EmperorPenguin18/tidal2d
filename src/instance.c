@@ -44,53 +44,70 @@ static size_t generate_atlas(int** x, int** y, const int w, const int h, const i
 	return frames;
 }
 
+static int assign_int(void* component, zpl_json_object* json, const char* key, int fallback) {
+	zpl_json_object* value = zpl_adt_query(json, key);
+	if (value == NULL) {
+		if (component != NULL) *(int*)component = fallback;
+		return 0;
+	}
+	if (value->type == ZPL_ADT_TYPE_INTEGER) {
+		*(int*)component = value->integer;
+	} else return ERROR("Instance %s is the wrong type", key);
+	return 0;
+}
+
+static int assign_float(float* component, zpl_json_object* json, const char* key, float fallback) {
+	zpl_json_object* value = zpl_adt_query(json, key);
+	if (value == NULL) {
+		if (component != NULL) *component = fallback;
+		return 0;
+	}
+	if (value->type == ZPL_ADT_TYPE_INTEGER) {
+		*component = value->integer;
+	} else if (value->type == ZPL_ADT_TYPE_REAL) {
+		*component = value->real;
+	} else return ERROR("Instance %s is the wrong type", key);
+	return 0;
+}
+
+static int assign_string(char** component, zpl_json_object* json, const char* key) {
+	zpl_json_object* value = zpl_adt_query(json, key);
+	if (value == NULL || component == NULL || *component != NULL) {
+		return 0;
+	}
+	if (value->type == ZPL_ADT_TYPE_STRING) {
+		*component = malloc(strlen(value->string)+1);
+		strcpy(*component, value->string);
+	} else return ERROR("Instance %s is the wrong type", key);
+	return 0;
+}
+
 /* Initialize Instance struct */
-int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t assets_num, Instance* instance, size_t* l) {
+int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t assets_num, cpSpace* space, Instance* instance) {
 	json* data = asset->data;
 	zpl_json_object* json = data->root;
 	instance->name = asset->name;
-	instance->id = NULL;
-	zpl_json_object* layer = zpl_adt_query(json, "layer");
-	if (layer == NULL) { //Layer is optional
-		instance->layer = SIZE_MAX;
-	} else {
-		if (layer->type != ZPL_ADT_TYPE_INTEGER) return ERROR("Instance layer isn't integer");
-		if (layer->integer < 0) return ERROR("Layer is less than 0");
-		instance->layer = layer->integer;
-	}
-	*l = instance->layer;
-	
+
+	if (assign_int(&instance->layer, json, "layer", INT_MAX) < 0) return -1;
 	instance->dst.x = 0.0;
 	instance->dst.y = 0.0;
-	zpl_json_object* width = zpl_adt_query(json, "width");
-	if (width == NULL) { //Width is optional
-		instance->dst.w = 0;
-	} else {
-		if (width->type != ZPL_ADT_TYPE_INTEGER) return ERROR("Instance width isn't integer");
-		instance->dst.w = width->integer;
-	}
-	zpl_json_object* height = zpl_adt_query(json, "height");
-	if (height == NULL) { //Height is optional
-		instance->dst.h = 0;
-	} else {
-		if (height->type != ZPL_ADT_TYPE_INTEGER) return ERROR("Instance height isn't integer");
-		instance->dst.h = height->integer;
-	}
+	if (assign_float(&instance->dst.w, json, "width", 0.0) < 0) return -1;
+	if (assign_float(&instance->dst.h, json, "height", 0.0) < 0) return -1;
 	
-	zpl_json_object* sprite = zpl_adt_query(json, "sprite");
 	instance->frame = 0;
 	instance->end_frame = -1;
-	if (sprite == NULL) { //Sprite is optional
+	char* str = NULL;
+	if (assign_string(&str, json, "sprite") < 0) return -1;
+	if (str == NULL) {
 		instance->texture.atlas = NULL;
 		instance->texture.x = NULL;
 		instance->texture.y = NULL;
 	} else {
-		if (sprite->type != ZPL_ADT_TYPE_STRING) return ERROR("Instance sprite isn't string");
 		//Don't have to check extension because texture
 		//creation will fail if it's wrong
 		for (size_t i = 0; i < assets_num; i++) {
 			/* Not super efficient having a texture for each instance */
-			if (strcmp(assets[i].name, sprite->string) == 0) {
+			if (strcmp(assets[i].name, str) == 0) {
 				SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, assets[i].data);
 				if (texture == NULL) return ERROR("Create texture failed: %s", SDL_GetError());
 				instance->texture.atlas = texture;
@@ -103,58 +120,29 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 			}
 			if (i == assets_num - 1) return ERROR("Sprite file not found");
 		}
+		free(str);
 	}
 
-	zpl_json_object* font = zpl_adt_query(json, "font");
-	if (font == NULL) { //Font is optional
+	str = NULL;
+	if (assign_string(&str, json, "font") < 0) return -1;
+	if (str == NULL) {
 		instance->font = NULL;
 	} else {
-		if (font->type != ZPL_ADT_TYPE_STRING) return ERROR("Instance font isn't string");
-		if (strcmp(getextension(font->string), "ttf") != 0) return ERROR("Font isn't a ttf file"); // Better to fail early on this
+		if (strcmp(getextension(str), "ttf") != 0) return ERROR("Font isn't a ttf file"); // Better to fail early on this
 		for (size_t i = 0; i < assets_num; i++) {
-			if (strcmp(assets[i].name, font->string) == 0) {
+			if (strcmp(assets[i].name, str) == 0) {
 				instance->font = assets[i].data;
 				break;
 			}
 			if (i == assets_num - 1) return ERROR("Font file not found");
 		}
+		free(str);
 	}
 
-	zpl_json_object* text = zpl_adt_query(json, "text");
-	if (text == NULL) { //Text is optional
-		instance->text = NULL;
-	} else {
-		if (text->type != ZPL_ADT_TYPE_STRING) return ERROR("Instance text isn't string");
-		instance->text = malloc(strlen(text->string)+1);
-		strcpy(instance->text, text->string);
-	}
+	instance->text = NULL;
+	if (assign_string(&instance->text, json, "text") < 0) return -1;
 
-	zpl_json_object* collision_type = zpl_adt_query(json, "collision_type");
-	if (collision_type == NULL) { //Collision type is optional
-		instance->collision_type = 0;
-	} else {
-		if (collision_type->type != ZPL_ADT_TYPE_INTEGER) return ERROR("Instance collision type isn't integer");
-		instance->collision_type = collision_type->integer;
-	}
-
-	instance->body = NULL;
-	instance->shape = NULL;
-	instance->colliding = NULL;
-	zpl_json_object* shape = zpl_adt_query(json, "shape");
-	if (shape == NULL) { //Shape is optional
-		instance->physics = PHYSICS_NONE;
-	} else {
-		if (shape->type != ZPL_ADT_TYPE_STRING) return ERROR("Instance shape isn't string");
-		if (strcmp(shape->string, "box") == 0) {
-			instance->physics = PHYSICS_BOX;
-		} else if (strcmp(shape->string, "wall") == 0) {
-			instance->physics = PHYSICS_BOX_STATIC;
-		} else if (strcmp(shape->string, "triangle") == 0) {
-			instance->physics = PHYSICS_TRIANGLE;
-		} else if (strcmp(shape->string, "triangle-wall") == 0) {
-			instance->physics = PHYSICS_TRIANGLE_STATIC;
-		} else return ERROR("Invalid shape");
-	}
+	if (assign_int(&instance->collision_type, json, "collision_type", 0) < 0) return -1;
 
 	for (size_t i = 0; i < EVENTS_NUM; i++) {
 		instance->actions[i] = NULL;
@@ -179,19 +167,53 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 		}
 	}
 
+	str = NULL;
+	if (assign_string(&str, json, "shape") < 0) return -1;
+	if (str == NULL) {
+		instance->body = NULL;
+		instance->shape = NULL;
+		instance->colliding = NULL;
+	} else {
+		cpFloat w = instance->dst.w;
+		cpFloat h = instance->dst.h;
+		if (strcmp(str, "box") == 0) {
+			instance->body = cpSpaceAddBody(space, cpBodyNew(1, INFINITY));
+			instance->shape = cpSpaceAddShape(space, cpBoxShapeNew(instance->body, w, h, 0));
+		} else if (strcmp(str, "wall") == 0) {
+			instance->body = cpBodyNewKinematic();
+			instance->shape = cpSpaceAddShape(space, cpBoxShapeNew(instance->body, w, h, 0));
+		} else if (strcmp(str, "triangle") == 0) {
+			instance->body = cpSpaceAddBody(space, cpBodyNew(1, INFINITY));
+			cpVect verts[3];
+			verts[0].x = 0; verts[0].y = -h/2;
+			verts[1].x = -w/2; verts[1].y = h/2;
+			verts[2].x = w/2; verts[2].y = h/2;
+			instance->shape = cpSpaceAddShape(space, cpPolyShapeNewRaw(instance->body, 3, verts, 0));
+		} else if (strcmp(str, "triangle-wall") == 0) {
+			instance->body = cpBodyNewKinematic();
+			cpVect verts[3];
+			verts[0].x = 0; verts[0].y = -h/2;
+			verts[1].x = -w/2; verts[1].y = h/2;
+			verts[2].x = w/2; verts[2].y = h/2;
+			instance->shape = cpSpaceAddShape(space, cpPolyShapeNewRaw(instance->body, 3, verts, 0));
+		} else return ERROR("Invalid shape");
+		cpShapeSetFriction(instance->shape, 1.0);
+		instance->colliding = malloc(sizeof(int));
+		*(instance->colliding) = -1;
+		cpShapeSetUserData(instance->shape, instance->colliding);
+		cpShapeSetCollisionType(instance->shape, instance->collision_type);
+		free(str);
+	}
+
 	return 0;
 }
 
 /* Cleanup Instance struct */
-void instance_cleanup(Instance* instance) {
+void instance_cleanup(cpSpace* space, Instance* instance) {
 	if (instance->texture.atlas) {
 		SDL_DestroyTexture(instance->texture.atlas);
 		free(instance->texture.x);
 		free(instance->texture.y);
-	}
-	if (instance->shape) { //Probably never gets executed
-		cpShapeFree(instance->shape);
-		cpBodyFree(instance->body);
 	}
 	for (size_t i = 0; i < EVENTS_NUM; i++) {
 		for (size_t j = 0; j < instance->actions_num[i]; j++) {
@@ -200,4 +222,15 @@ void instance_cleanup(Instance* instance) {
 		free(instance->actions[i]);
 	}
 	if (instance->text) free(instance->text);
+	if (instance->shape) {
+		free(instance->colliding); instance->colliding = NULL;
+		cpSpaceRemoveShape(space, instance->shape);
+		if (cpSpaceContainsBody(space, instance->body)) {
+			cpSpaceRemoveBody(space, instance->body);
+		}
+		cpShapeFree(instance->shape); instance->shape = NULL;
+		cpBodyFree(instance->body); instance->body = NULL;
+	}
+	SDL_RemoveTimer(instance->timer);
+	memset(instance, 0, sizeof(Instance));
 }
