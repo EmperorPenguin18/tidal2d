@@ -71,7 +71,7 @@ static void action_sound(Engine* e, Instance* instance, char* args) {
 	queued = e->audio_buf.size - pos;
 	if (queued >= spec->size) {
 		SDL_ClearQueuedAudio(e->audiodev);
-		SDL_MixAudioFormat(((Uint8*)e->audio_buf.userdata)+pos, spec->userdata, spec->format, spec->size, SDL_MIX_MAXVOLUME);
+		SDL_MixAudioFormat(((Uint8*)e->audio_buf.userdata)+pos, spec->userdata, spec->format, spec->size, VOLUME);
 		SDL_QueueAudio(e->audiodev, ((Uint8*)e->audio_buf.userdata)+pos, queued);
 	}
 }

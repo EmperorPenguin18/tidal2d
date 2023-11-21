@@ -19,6 +19,7 @@ struct var {
 typedef struct var var;
 
 #define MAX_INSTANCES 128
+#define VOLUME SDL_MIX_MAXVOLUME
 
 /* The context struct. Keeps track of all state related
  * stuff, and asset arrays.

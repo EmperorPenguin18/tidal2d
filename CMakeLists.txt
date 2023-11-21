@@ -41,6 +41,11 @@ set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE})
 
 include(FetchContent)
 
+# mingw
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	target_link_libraries(tidal2d PRIVATE mingw32)
+endif()
+
 # SDL2 dependency
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 	target_compile_options(tidal2d PRIVATE "-sUSE_SDL=2")
@@ -64,7 +69,7 @@ else()
 		FetchContent_Declare(
 			SDL
 			GIT_REPOSITORY https://github.com/libsdl-org/SDL
-			GIT_TAG cc016b0046d563287f0aa9f09b958b5e70d43696 # 2.28.4
+			GIT_TAG 15ead9a40d09a1eb9972215cceac2bf29c9b77f6 # 2.28.5
 		)
 		FetchContent_GetProperties(SDL)
 		if(NOT SDL_POPULATED)
@@ -88,9 +93,9 @@ else()
 			target_link_directories(tidal2d PRIVATE ${sdl_BINARY_DIR})
 		endif()
 		if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-			target_link_libraries(tidal2d PRIVATE SDL2d SDL2maind)
+			target_link_libraries(tidal2d PRIVATE SDL2maind SDL2d)
 		else()
-			target_link_libraries(tidal2d PRIVATE SDL2 SDL2main)
+			target_link_libraries(tidal2d PRIVATE SDL2main SDL2)
 		endif()
 	endif()
 endif()

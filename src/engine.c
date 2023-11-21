@@ -78,12 +78,11 @@ static int setup_env(Engine* e) {
 	SDL_AudioSpec spec;
 	if (SDL_GetDefaultAudioInfo(&name, &spec, 0) != 0) {
 		if (SDL_GetAudioDeviceSpec(0, 0, &spec) != 0) {
-			spec.freq = 48000;
-			spec.format = AUDIO_S16SYS;
-			spec.samples = 2048;
+			spec.freq = 44100;
+			spec.format = AUDIO_F32;
 		}
 	} else SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "Audio device name: %s", name);
-	e->audiodev = SDL_OpenAudioDevice(name, 0, &spec, &e->audio_buf, SDL_AUDIO_ALLOW_ANY_CHANGE);
+	e->audiodev = SDL_OpenAudioDevice(name, 0, &spec, &e->audio_buf, 0);
 	if (!e->audiodev) return ERROR("Open audio failed: %s", SDL_GetError());
 	SDL_PauseAudioDevice(e->audiodev, 0);
 	e->audio_buf.size = 0;
@@ -202,12 +201,31 @@ void instance_destroy(Engine* e, Instance* instance) {
 	instance_cleanup(e->space, instance);
 }
 
+static void convert_audio(Engine* e, SDL_AudioSpec* spec) {
+	SDL_AudioCVT cvt;
+	SDL_BuildAudioCVT(&cvt, spec->format, spec->channels, spec->freq,
+		e->audio_buf.format, e->audio_buf.channels, e->audio_buf.freq);
+	if (cvt.needed) {
+		cvt.len = spec->size;
+		cvt.buf = SDL_malloc(cvt.len * cvt.len_mult);
+		memcpy(cvt.buf, spec->userdata, spec->size);
+		SDL_ConvertAudio(&cvt);
+		free(spec->userdata);
+		spec->userdata = cvt.buf;
+		spec->size = cvt.len_cvt;
+		spec->format = cvt.dst_format;
+		spec->channels = e->audio_buf.channels;
+		spec->freq = e->audio_buf.freq;
+	}
+}
+
 /* Create all the objects, then spawn the first one. */
 static int spawn_level(Engine* e) {
 	char* first = NULL;
 	size_t first_layer = SIZE_MAX;
 	for (size_t i = 0; i < e->assets_num; i++) {
-		if (strcmp(getextension(e->assets[i].name), "json") == 0) {
+		const char* ext = getextension(e->assets[i].name);
+		if (strcmp(ext, "json") == 0) {
 			Instance instance;
 			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->space, &instance) < 0)
 				return ERROR("Instance creation failed: %s", e->assets[i].name);
@@ -216,9 +234,11 @@ static int spawn_level(Engine* e) {
 				first_layer = instance.layer;
 			}
 			instance_cleanup(e->space, &instance);
-		} else if (strcmp(getextension(e->assets[i].name), "lua") == 0) {
+		} else if (strcmp(ext, "lua") == 0) {
 			if (luaL_dostring(e->L, e->assets[i].data) != 0)
 				return ERROR("Doing Lua failed: %s\n%s\n%s", e->assets[i].name, e->assets[i].data, lua_tostring(e->L, -1));
+		} else if (strcmp(ext, "wav") == 0 || strcmp(ext, "ogg") == 0) {
+			convert_audio(e, e->assets[i].data);
 		}
 	}
 	if (first) {
@@ -336,7 +356,7 @@ void engine_run(void* p) {
 		e->audio_buf.userdata = realloc(e->audio_buf.userdata, e->music->size);
 		e->audio_buf.size = e->music->size;
 		memset(e->audio_buf.userdata, e->audio_buf.silence, e->audio_buf.size);
-		SDL_MixAudioFormat(e->audio_buf.userdata, e->music->userdata, e->music->format, e->music->size, SDL_MIX_MAXVOLUME);
+		SDL_MixAudioFormat(e->audio_buf.userdata, e->music->userdata, e->music->format, e->music->size, VOLUME);
 		SDL_QueueAudio(e->audiodev, e->audio_buf.userdata, e->audio_buf.size);
 	}
 #ifndef NDEBUG
