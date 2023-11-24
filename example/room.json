@@ -19,7 +19,8 @@
 				"type": "spawn",
 				"object": "rocket.json",
 				"x": 50,
-				"y": 240
+				"y": 240,
+				"relative": false
 			},
 			{
 				"type": "timer",

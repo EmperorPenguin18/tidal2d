@@ -3,7 +3,7 @@
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #define STBTTF_IMPLEMENTATION
-#include "stbttf.h"
+#include <stbttf.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>

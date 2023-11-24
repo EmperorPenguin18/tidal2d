@@ -66,10 +66,6 @@
 				"link": "https://github.com/EmperorPenguin18"
 			},
 			{
-				"type": "lua_async",
-				"function": "destruction"
-			},
-			{
 				"type": "destroy"
 			}
 		]

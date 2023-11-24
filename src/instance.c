@@ -128,10 +128,11 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 	if (str == NULL) {
 		instance->font = NULL;
 	} else {
-		if (strcmp(getextension(str), "ttf") != 0) return ERROR("Font isn't a ttf file"); // Better to fail early on this
 		for (size_t i = 0; i < assets_num; i++) {
 			if (strcmp(assets[i].name, str) == 0) {
-				instance->font = assets[i].data;
+				font* font = assets[i].data;
+				instance->font = STBTTF_OpenFontRW(renderer, SDL_RWFromConstMem(font->data, font->len), 28);
+				if (!instance->font) return ERROR("Open font failed");
 				break;
 			}
 			if (i == assets_num - 1) return ERROR("Font file not found");
@@ -232,5 +233,6 @@ void instance_cleanup(cpSpace* space, Instance* instance) {
 		cpBodyFree(instance->body); instance->body = NULL;
 	}
 	SDL_RemoveTimer(instance->timer);
+	if (instance->font) STBTTF_CloseFont(instance->font);
 	memset(instance, 0, sizeof(Instance));
 }

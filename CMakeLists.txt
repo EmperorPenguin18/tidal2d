@@ -243,4 +243,16 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	endif()
 endif()
 
+#stbttf dependency
+FetchContent_Declare(
+	stbttf
+	GIT_REPOSITORY https://gist.github.com/92ee64d9ffcaa5d3be95edbf4ded55f2.git
+	GIT_TAG 9612727e661c72a23a42ae05846d356a73766f90 # Commit Mar 28 2019
+)
+FetchContent_GetProperties(stbttf)
+if(NOT stbttf_POPULATED)
+	FetchContent_Populate(stbttf)
+	target_include_directories(tidal2d PRIVATE "${stbttf_SOURCE_DIR}")
+endif()
+
 install(TARGETS tidal2d DESTINATION bin)

@@ -11,7 +11,7 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include <nanosvgrast.h>
 
-#include "stbttf.h"
+#include <SDL.h>
 
 #include "assets.h"
 

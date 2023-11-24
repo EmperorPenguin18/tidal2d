@@ -5,7 +5,6 @@
 #include <time.h>
 
 #include "filesystem.h"
-#include "stbttf.h"
 #include "events.h"
 #include "actions.h"
 #include "embedded_assets.h"
@@ -331,9 +330,7 @@ static void draw(Engine* e) {
 			SDL_RenderCopyExF(e->renderer, instance->texture.atlas, &src, &instance->dst, angle, NULL, SDL_FLIP_NONE);
 		}
 		if (instance->font) {
-			STBTTF_Font* font = STBTTF_OpenFontRW(e->renderer, SDL_RWFromConstMem(instance->font->data, instance->font->len), 28);
-			STBTTF_RenderText(e->renderer, font, instance->dst.x, instance->dst.y+28, instance->text);
-			STBTTF_CloseFont(font);
+			STBTTF_RenderText(e->renderer, instance->font, instance->dst.x, instance->dst.y+28, instance->text);
 		}
 #ifndef NDEBUG
 		SDL_RenderDrawRectF(e->renderer, &instance->dst);

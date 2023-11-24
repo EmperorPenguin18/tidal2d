@@ -7,6 +7,8 @@
 
 #include <chipmunk/chipmunk.h>
 
+#include <stbttf.h>
+
 #include "assets.h"
 #include "events.h"
 
@@ -31,7 +33,7 @@ struct Instance {
 	ID id;
 	SDL_FRect dst;
 	texture texture;
-	font* font;
+	STBTTF_Font* font;
 	char* text;
 	cpBody* body;
 	cpShape* shape;
