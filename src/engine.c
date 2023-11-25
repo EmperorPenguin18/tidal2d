@@ -92,12 +92,9 @@ static int setup_env(Engine* e) {
 	col_hand->userData = e; //Set the collision handler's user data to the context
 	e->L = luaL_newstate();
 	luaL_openlibs(e->L);
-	lua_pushcfunction(e->L, action_api);
-	lua_setglobal(e->L, "action");
-	lua_pushcfunction(e->L, spawn_api);
-	lua_setglobal(e->L, "spawn");
-	lua_pushcfunction(e->L, register_action);
-	lua_setglobal(e->L, "register_action");
+	lua_register(e->L, "action", action_api);
+	lua_register(e->L, "spawn", spawn_api);
+	lua_register(e->L, "register_action", register_action);
 #ifndef NDEBUG
 	e->fps = malloc(sizeof(float));
 	e->vars = realloc(e->vars, sizeof(var));
@@ -261,7 +258,9 @@ Engine* engine_init(int argc, char *argv[]) {
 /* Update instance position based on physics. Watch out for destroying instances in the loop. */
 static void update(Engine* e) {
 	int mouse_x, mouse_y;
-	Uint32 mouse = SDL_GetMouseState(&mouse_x, &mouse_y);
+	Uint32 mouse_state = SDL_GetMouseState(&mouse_x, &mouse_y);
+	bool mouse = !e->prev_mouse && mouse_state;
+	e->prev_mouse = mouse_state;
 	SDL_FPoint point; point.x = mouse_x; point.y = mouse_y;
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances+i;
@@ -294,7 +293,10 @@ static void update(Engine* e) {
 				instance->frame++;
 			}
 		}
-		if (mouse && SDL_PointInFRect(&point, dst)) {
+		SDL_FRect text_dst; text_dst.x = dst->x; text_dst.y = dst->y;
+		text_dst.w = (instance->text) ? STBTTF_MeasureText(instance->font, instance->text) : 0;
+		text_dst.h = 28.0f;
+		if (mouse && (SDL_PointInFRect(&point, dst) || SDL_PointInFRect(&point, &text_dst))) {
 			event_handler(e, TIDAL_EVENT_CLICKON, instance);
 		}
 	}

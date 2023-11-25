@@ -47,6 +47,7 @@ struct Engine {
 	SDL_TimerID timers[10];
 	bool timer_triggered[10];
 	SDL_Cursor* cursor;
+	Uint32 prev_mouse;
 };
 typedef struct Engine Engine;
 

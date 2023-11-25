@@ -1,7 +1,6 @@
 {
 	"layer": 0,
 	"font": "DejaVuSans.ttf",
-	"text": "Example: The Game",
 	"events": {
 		"quit": [
 			{
@@ -31,6 +30,12 @@
 		"key_f1": [
 			{
 				"type": "reload"
+			}
+		],
+		"clickon": [
+			{
+				"type": "uri",
+				"link": "https://github.com/EmperorPenguin18"
 			}
 		]
 	}

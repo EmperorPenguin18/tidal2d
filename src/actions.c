@@ -250,6 +250,13 @@ static void action_window(Engine* e, Instance* instance, char* args) {
 	SDL_SetWindowSize(e->window, w, h);
 }
 
+/* Modify the text property of an instance. See action documentation. */
+static void action_text(Engine* e, Instance* instance, char* args) {
+	char* string = args;
+	if (instance->text) free(instance->text);
+	instance->text = string;
+}
+
 /* Fill in memory with specified structure.
  * Variadic arguments must be in pairs of two.
  * STRING is string, INTEGER is number, and REAL is bool.
@@ -471,6 +478,13 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
 		action->free = 1;
 		action->run = &action_window;
+
+	} else if (strcmp(type, "text") == 0) {
+		action->args =
+			args_generator(json, 1, "string", ZPL_ADT_TYPE_STRING);
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
+		action->free = 0;
+		action->run = &action_text;
 
 	} else return ERROR("Invalid action type found: %s", type);
 	free(type);
