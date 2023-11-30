@@ -1,10 +1,5 @@
-Name ideas:
-Solenoid2D
-Soleno2D
-Helical2D
-Helix2D
-Coil2D
-Solenoid
+Name:
+Sol2noid
 
 C --> C++
 SDL --> Sokol
@@ -22,3 +17,5 @@ precompiled headers
 asset embedding becomes part of cmake process
 actions are scripting api functions
 events only have one handler, provide info to script
+save function parameters are file name and a dict, load takes name returns dict
+in cmake, make header dependency a reusable function
