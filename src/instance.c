@@ -91,8 +91,8 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 	if (assign_int(&instance->layer, json, "layer", INT_MAX) < 0) return -1;
 	instance->dst.x = 0.0;
 	instance->dst.y = 0.0;
-	if (assign_float(&instance->dst.w, json, "width", 0.0) < 0) return -1;
-	if (assign_float(&instance->dst.h, json, "height", 0.0) < 0) return -1;
+	if (assign_float(&instance->dst.w, json, "width", 1.0) < 0) return -1;
+	if (assign_float(&instance->dst.h, json, "height", 1.0) < 0) return -1;
 	
 	instance->frame = 0;
 	instance->end_frame = -1;
@@ -155,7 +155,7 @@ int instance_create(Asset* asset, SDL_Renderer* renderer, Asset* assets, size_t 
 		for (size_t i = 0; i < zpl_array_count(events->nodes); i++) {
 			if (events->nodes[i].type != ZPL_ADT_TYPE_ARRAY) return ERROR("Event does not contain an array");
 			event_t ev = str2ev(events->nodes[i].name);
-			if (ev == TIDAL_EVENT_ERR) return ERROR("Invalid event type found");
+			if (ev == TIDAL_EVENT_ERR) return ERROR("Invalid event type found: %s", events->nodes[i].name);
 			for (size_t j = 0; j < zpl_array_count(events->nodes[i].nodes); j++) {
 				if (events->nodes[i].nodes[j].type != ZPL_ADT_TYPE_OBJECT) return ERROR("Event array does not contain an object");
 				zpl_json_object* action = events->nodes[i].nodes + j;

@@ -5,8 +5,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <SDL_rwops.h>
+#include <zpl.h>
 
-#include "zpl.h"
 #include "common.h"
 
 #include "filesystem.h"

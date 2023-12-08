@@ -3,6 +3,7 @@
 //https://github.com/EmperorPenguin18/tidal2d/blob/main/LICENSE
 
 #include <string.h>
+#include <unistd.h>
 
 #include "actions.h"
 
@@ -30,12 +31,21 @@ static void action_move(Engine* e, Instance* instance, char* args) {
 	float x = *(float*)args;
 	float y = *(float*)(args+sizeof(float));
 	bool relative = *(bool*)(args+(2*sizeof(float)));
-	if (!instance->body) return;
-	if (relative) {
-		cpVect v = cpBodyGetPosition(instance->body);
-		cpVect rel = cpvadd(v, cpv(x, y));
-		cpBodySetPosition(instance->body, rel);
-	} else cpBodySetPosition(instance->body, cpv(x, y));
+	if (instance->body) {
+		if (relative) {
+			cpVect v = cpBodyGetPosition(instance->body);
+			cpVect rel = cpvadd(v, cpv(x, y));
+			cpBodySetPosition(instance->body, rel);
+		} else cpBodySetPosition(instance->body, cpv(x, y));
+	} else {
+		if (relative) {
+			instance->dst.x += x;
+			instance->dst.y += y;
+		} else {
+			instance->dst.x = x;
+			instance->dst.y = y;
+		}
+	}
 }
 
 /* Change a physics body velocity. See action documentation. */
@@ -255,6 +265,12 @@ static void action_text(Engine* e, Instance* instance, char* args) {
 	char* string = args;
 	if (instance->text) free(instance->text);
 	instance->text = string;
+}
+
+/* Set hidden. See action documentation. */
+static void action_hide(Engine* e, Instance* instance, char* args) {
+	bool state = *args;
+	instance->hidden = state;
 }
 
 /* Fill in memory with specified structure.
@@ -486,6 +502,13 @@ static int action_handler(Action* action, zpl_json_object* json, Asset* assets, 
 		action->free = 0;
 		action->run = &action_text;
 
+	} else if (strcmp(type, "hide") == 0) {
+		action->args =
+			args_generator(json, 1, "state", ZPL_ADT_TYPE_REAL);
+		if (action->args == NULL) return ERROR("Args generator failed: %s", type);
+		action->free = 1;
+		action->run = &action_hide;
+
 	} else return ERROR("Invalid action type found: %s", type);
 	free(type);
 	return 0;
@@ -508,16 +531,25 @@ void action_cleanup(Action* action) {
  */
 int action_api(lua_State *L) {
 	Engine* e = lua_touserdata(L, 1);
-	if (e == NULL) return 0;
+	if (e == NULL) {
+		ERROR("Engine is nil");
+		return 0;
+	}
 	Instance* instance = lua_touserdata(L, 2);
-	if (instance == NULL) return 0;
+	if (instance == NULL) {
+		ERROR("Instance is nil");
+		return 0;
+	}
 	const char* string = luaL_checkstring(L, 3);
 	char* str = malloc(strlen(string)+1);
 	strcpy(str, string);
 	Action action;
 	zpl_json_object json;
 	zpl_json_parse(&json, str, zpl_heap());
-	if (action_init(&action, &json, e->assets, e->assets_num) < 0) return 0; //should improve error handling later
+	if (action_init(&action, &json, e->assets, e->assets_num) < 0) {
+		exit(1);
+		//return 0; //should improve error handling later
+	}
 	free(str);
 	zpl_json_free(&json);
 	action.run(e, instance, action.args);
@@ -528,9 +560,15 @@ int action_api(lua_State *L) {
 /* Unique spawn function because we want to return the new instance. */
 int spawn_api(lua_State *L) {
 	Engine* e = lua_touserdata(L, 1);
-	if (e == NULL) return 0;
+	if (e == NULL) {
+		ERROR("Engine is nil");
+		return 0;
+	}
 	Instance* instance = lua_touserdata(L, 2);
-	if (instance == NULL) return 0;
+	if (instance == NULL) {
+		ERROR("Instance is nil");
+		return 0;
+	}
 	const char* object = luaL_checkstring(L, 3);
 	float x = luaL_checknumber(L, 4);
 	float y = luaL_checknumber(L, 5);
@@ -540,7 +578,8 @@ int spawn_api(lua_State *L) {
 		x += v.x;
 		y += v.y;
 	}
-	lua_pushlightuserdata(L, instance_copy(e, object, x, y));
+	Instance* new_instance = instance_copy(e, object, x, y);
+	lua_pushlightuserdata(L, new_instance);
 	return 1;
 }
 
@@ -549,3 +588,23 @@ int register_action(lua_State *L) {
 	SDL_Log("Not implemented");
 	return 0;
 }
+
+/*  */
+int measure_api(lua_State *L) {
+	Instance* instance = lua_touserdata(L, 1);
+	if (instance == NULL) {
+		ERROR("Instance is nil");
+		return 0;
+	}
+	const char* str = luaL_checkstring(L, 2);
+	lua_pushnumber(L, STBTTF_MeasureText(instance->font, str));
+	return 1;
+}
+
+/*  */
+int sleep_api(lua_State *L) {
+	double time = luaL_checknumber(L, 1);
+	sleep(time);
+	return 0;
+}
+

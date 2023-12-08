@@ -46,6 +46,7 @@ struct Instance {
 	bool inc_frame;
 	SDL_TimerID timer;
 	cpCollisionType collision_type;
+	bool hidden;
 };
 typedef struct Instance Instance;
 

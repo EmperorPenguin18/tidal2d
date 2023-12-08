@@ -137,6 +137,10 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_KEY_DOWN;
 	} else if (strcmp(string, "key_left") == 0) {
 		return TIDAL_EVENT_KEY_LEFT;
+	} else if (strcmp(string, "key_shift") == 0) {
+		return TIDAL_EVENT_KEY_SHIFT;
+	} else if (strcmp(string, "key_backspace") == 0) {
+		return TIDAL_EVENT_KEY_BACKSPACE;
 	} else if (strcmp(string, "keyp_w") == 0) {
 		return TIDAL_EVENT_KEYP_W;
 	} else if (strcmp(string, "keyp_a") == 0) {
@@ -153,6 +157,8 @@ event_t str2ev(const char* string) {
 		return TIDAL_EVENT_KEYR_S;
 	} else if (strcmp(string, "keyr_d") == 0) {
 		return TIDAL_EVENT_KEYR_D;
+	} else if (strcmp(string, "keyr_shift") == 0) {
+		return TIDAL_EVENT_KEYR_SHIFT;
 	} else if (strcmp(string, "keyp_wd") == 0) {
 		return TIDAL_EVENT_KEYP_WD;
 	} else if (strcmp(string, "keyp_sd") == 0) {
@@ -377,6 +383,15 @@ event_t get_event() {
 					case SDLK_LEFT:
 						return TIDAL_EVENT_KEY_LEFT;
 						break;
+					case SDLK_LSHIFT:
+						return TIDAL_EVENT_KEY_SHIFT;
+						break;
+					case SDLK_RSHIFT:
+						return TIDAL_EVENT_KEY_SHIFT;
+						break;
+					case SDLK_BACKSPACE:
+						return TIDAL_EVENT_KEY_BACKSPACE;
+						break;
 				}
 				break;
 			case SDL_KEYUP:
@@ -392,6 +407,12 @@ event_t get_event() {
 						break;
 					case SDLK_d:
 						return TIDAL_EVENT_KEYR_D;
+						break;
+					case SDLK_LSHIFT:
+						return TIDAL_EVENT_KEYR_SHIFT;
+						break;
+					case SDLK_RSHIFT:
+						return TIDAL_EVENT_KEYR_SHIFT;
 						break;
 				}
 				break;

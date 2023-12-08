@@ -255,4 +255,18 @@ if(NOT stbttf_POPULATED)
 	target_include_directories(tidal2d PRIVATE "${stbttf_SOURCE_DIR}")
 endif()
 
+#zpl dependency
+FetchContent_Declare(
+	zpl
+	URL https://github.com/zpl-c/zpl/releases/download/19.4.1/zpl.h
+	URL_MD5 2f59a58c27107a1c832a30f74c52168c
+	DOWNLOAD_NO_EXTRACT true
+	DOWNLOAD_NO_PROGRESS true
+)
+FetchContent_GetProperties(zpl)
+if(NOT zpl_POPULATED)
+	FetchContent_Populate(zpl)
+	target_include_directories(tidal2d PRIVATE "${zpl_SOURCE_DIR}")
+endif()
+
 install(TARGETS tidal2d DESTINATION bin)

@@ -5,7 +5,8 @@
 #ifndef __ASSETS_H__
 #define __ASSETS_H__
 
-#include "zpl.h"
+#include <zpl.h>
+
 #include "common.h"
 
 /* Asset definition. Name is the file name

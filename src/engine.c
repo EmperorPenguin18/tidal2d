@@ -52,6 +52,8 @@ static unsigned char collisionCallback(cpArbiter *arb, cpSpace *space, void *dat
 int action_api(lua_State* L);
 int spawn_api(lua_State* L);
 int register_action(lua_State* L);
+int measure_api(lua_State* L);
+int sleep_api(lua_State* L);
 
 /* Setup libraries */
 static int setup_env(Engine* e) {
@@ -95,6 +97,8 @@ static int setup_env(Engine* e) {
 	lua_register(e->L, "action", action_api);
 	lua_register(e->L, "spawn", spawn_api);
 	lua_register(e->L, "register_action", register_action);
+	lua_register(e->L, "measure_text", measure_api);
+	lua_register(e->L, "sleep", sleep_api);
 #ifndef NDEBUG
 	e->fps = malloc(sizeof(float));
 	e->vars = realloc(e->vars, sizeof(var));
@@ -226,7 +230,9 @@ static int spawn_level(Engine* e) {
 			if (instance_create(e->assets+i, e->renderer, e->assets, e->assets_num, e->space, &instance) < 0)
 				return ERROR("Instance creation failed: %s", e->assets[i].name);
 			if (instance.layer < first_layer) {
+				SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "First name: %s", instance.name);
 				first = instance.name;
+				SDL_LogDebug(SDL_LOG_CATEGORY_CUSTOM, "First layer: %d", instance.layer);
 				first_layer = instance.layer;
 			}
 			instance_cleanup(e->space, &instance);
@@ -319,6 +325,7 @@ static void draw(Engine* e) {
 	SDL_SetRenderDrawColor(e->renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 	for (size_t i = 0; i < e->instances_num; i++) {
 		Instance* instance = e->instances + i;
+		if (instance->hidden) continue;
 		if (instance->texture.atlas) {
 			SDL_Rect src;
 			src.x = instance->texture.x[instance->frame];
@@ -330,13 +337,13 @@ static void draw(Engine* e) {
 			else angle = 0;
 			//SDL_FPoint center; cpVect v = cpBodyLocalToWorld(instance->body, cpBodyGetCenterOfGravity(instance->body)); center.x = v.x; center.y = v.y;
 			SDL_RenderCopyExF(e->renderer, instance->texture.atlas, &src, &instance->dst, angle, NULL, SDL_FLIP_NONE);
+#ifndef NDEBUG
+			SDL_RenderDrawRectF(e->renderer, &instance->dst);
+#endif
 		}
-		if (instance->font) {
+		if (instance->font && instance->text) {
 			STBTTF_RenderText(e->renderer, instance->font, instance->dst.x, instance->dst.y+28, instance->text);
 		}
-#ifndef NDEBUG
-		SDL_RenderDrawRectF(e->renderer, &instance->dst);
-#endif
 	}
 	SDL_RenderPresent(e->renderer);
 }
