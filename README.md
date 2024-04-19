@@ -47,3 +47,5 @@ cmake --build .
 See the [wiki](https://github.com/EmperorPenguin18/tidal2d/wiki/)
 ## Games using Tidal2D
 [Example: The Game](https://github.com/EmperorPenguin18/tidal2d/tree/main/example)
+[Toxic Trap!](https://github.com/EmperorPenguin18/ld54)
+[Entrepreneurship Simulator](https://github.com/EmperorPenguin18/405-project)
