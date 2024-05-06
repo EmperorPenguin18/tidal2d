@@ -9,4 +9,24 @@
 		return EXIT_FAILURE; \
 	}
 
+static const char* valid_extensions[] = {
+	"bmp",
+	"jpg",
+	"png",
+	"svg",
+	"ttf",
+	"wav",
+	"ogg",
+	"lua",
+	NULL,
+};
+
+static const char* extension(const char* filename) {
+	return strrchr(filename, '.')+1;
+}
+
+/*static const char* basename(const char* filename) {
+	return strrchr(filename, '/')+1;
+}*/
+
 #endif
