@@ -8,3 +8,6 @@
 #define PHYSAC_IMPLEMENTATION
 #define PHYSAC_STANDALONE
 #include <physac.h>
+
+#define LUA_IMPL
+#include <minilua.h>

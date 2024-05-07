@@ -28,16 +28,6 @@ static unsigned char* svg_handler(const char* filename, size_t* size) {
 	return pixels;
 }
 
-static unsigned char* wav_handler(const char* filename, size_t* size) {
-	//TODO
-	return NULL;
-}
-
-static unsigned char* ogg_handler(const char* filename, size_t* size) {
-	//TODO
-	return NULL;
-}
-
 static unsigned char* basic_handler(const char* filename, size_t* size) {
 	unsigned char* out = NULL;
 	FILE* fp = fopen(filename, "rb");
@@ -51,6 +41,24 @@ static unsigned char* basic_handler(const char* filename, size_t* size) {
 	return out;
 }
 
+static unsigned char* wav_handler(const char* filename, size_t* size) {
+	//TODO
+	return NULL;
+}
+
+static unsigned char* ogg_handler(const char* filename, size_t* size) {
+	//TODO
+	return NULL;
+}
+
+static unsigned char* txt_handler(const char* filename, size_t* size) {
+	unsigned char* out = basic_handler(filename, size);
+	REALLOC(out, (*size)+1);
+	out[*size] = '\0';
+	*size = (*size)+1;
+	return out;
+}
+
 static unsigned char* (*const handlers[])(const char*, size_t*) = {
 	&stb_handler, // bmp
 	&stb_handler, // jpg
@@ -59,7 +67,7 @@ static unsigned char* (*const handlers[])(const char*, size_t*) = {
 	&basic_handler, // ttf
 	&wav_handler,
 	&ogg_handler,
-	&basic_handler // lua
+	&txt_handler // lua
 };
 
 unsigned char* extension_handler(const char* filename, size_t* size) {
