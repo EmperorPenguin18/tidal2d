@@ -2,21 +2,10 @@
 #include <math.h>
 
 #include "common.h"
+#include "engine.h"
 #include "actions.h"
 
-#include <sokol_gfx.h>
-#include <sokol_gp.h>
-#include <sokol_app.h>
-#include <sokol_glue.h>
-#define PHYSAC_STANDALONE
-#include <physac.h>
-
-#define NUM_INSTANCES PHYSAC_MAX_BODIES
-
 engine e; // global state
-
-extern const unsigned char data_array[];
-extern const unsigned char data_info[];
 
 static void frame(void) {
 	int width = sapp_width(), height = sapp_height();
@@ -24,16 +13,23 @@ static void frame(void) {
 
 	sgp_begin(width, height);
 	sgp_viewport(0, 0, width, height);
-	sgp_project(-ratio, ratio, 1.0f, -1.0f);
 
-	sgp_set_color(0.1f, 0.1f, 0.1f, 1.0f);
+	sgp_set_color(0.5f, 0.5f, 0.5f, 1.0f);
 	sgp_clear();
+	sgp_reset_color();
+	sgp_set_blend_mode(SGP_BLENDMODE_NONE);
 
 	float time = sapp_frame_count() * sapp_frame_duration();
-	float r = sinf(time)*0.5+0.5, g = cosf(time)*0.5+0.5;
-	sgp_set_color(r, g, 0.3f, 1.0f);
-	sgp_rotate_at(time, 0.0f, 0.0f);
-	sgp_draw_filled_rect(-0.5f, -0.5f, 1.0f, 1.0f);
+	for (int i = 0; i < e.ins_num; i++) {
+		PhysicsBody body = GetPhysicsBody(i);
+		if (body) {
+			e.ins_rect[i].dst.x = body->position.x;
+			e.ins_rect[i].dst.y = body->position.y;
+		}
+	}
+	sgp_set_image(0, e.image);
+	sgp_draw_textured_rects(0, &e.ins_rect[0], e.ins_num);
+	sgp_reset_image(0);
 
 	sg_pass pass = {.swapchain = sglue_swapchain()};
 	sg_begin_pass(&pass);
@@ -46,17 +42,6 @@ static void frame(void) {
 static void event(const sapp_event* event) {
 }
 
-#define DATA_LOOP(...) \
-	size_t offset = 0; \
-	for (int i = 0; data_info[i];) { \
-		size_t len = strlen(data_info+i)+1; \
-		size_t size = (size_t)*(data_info+i+len); \
-		__VA_ARGS__ \
-		offset += size; \
-		i += len + 8; \
-	}
-
-
 static void init(void) {
 	sg_desc sgdesc = {
 		.environment = sglue_environment(),
@@ -68,11 +53,25 @@ static void init(void) {
 	sgp_setup(&sgpdesc);
 	if (!sgp_is_valid()) exit(EXIT_FAILURE);
 
+	size_t offset;
+	DATA_LOOP(offset);
+	sg_range range = { .ptr = data_array, .size = offset };
+	sg_image_data image_data = { .subimage[0][0] = range };
+	sg_image_desc image_desc = {
+		.width = offset/4,
+		.height = 1,
+		.data = image_data,
+	};
+	e.image = sg_make_image(&image_desc);
+	if (sg_query_image_state(e.image) != SG_RESOURCESTATE_VALID) exit(EXIT_FAILURE);
+
+	InitPhysics();
+
 	e.L = luaL_newstate();
 	luaL_openlibs(e.L);
 	luaL_newlib(e.L, actions);
 	lua_setglobal(e.L, "tidal");
-	DATA_LOOP(
+	DATA_LOOP(offset,
 		if (strcmp(extension(data_info+i), "lua") == 0)
 			if (luaL_dostring(e.L, data_array+offset) != 0)
 				fprintf(stderr, "Script failed: %s\n%s\n%s\n", basename(data_info+i), data_array+offset, lua_tostring(e.L, -1));
@@ -81,6 +80,7 @@ static void init(void) {
 
 static void cleanup(void) {
 	lua_close(e.L);
+	ClosePhysics();
 	sgp_shutdown();
 	sg_shutdown();
 }

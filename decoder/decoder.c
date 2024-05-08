@@ -51,6 +51,9 @@ static file_table* sort(const int argc, char** const argv) {
 		lc = 0; \
 	}
 
+#define PRINT_BYTE(file, byte) \
+	fprintf(file, "0x%02x, ", byte);
+
 int main(int argc, char** argv) {
 	FILE* out = fopen("data.c", "w");
 	CHECK_ERROR(out, "data.c failed to open");
@@ -65,8 +68,14 @@ int main(int argc, char** argv) {
 		ft[i].size = size;
 		if (!buf) continue;
 		for (size_t j = 0; j < size; j++) {
-			fprintf(out, "0x%x, ", buf[j]);
+			PRINT_BYTE(out, buf[j]);
 			LINE_BREAK(lc, out);
+		}
+		if (size % 4 != 0) { // padding for alignment
+			for (size_t j = 0; j < 4 - (size % 4); j++) {
+				PRINT_BYTE(out, 0);
+				LINE_BREAK(lc, out);
+			}
 		}
 		free(buf);
 	}
@@ -75,11 +84,11 @@ int main(int argc, char** argv) {
 	lc = 0;
 	for (int i = 0; ft[i].name; i++) {
 		for (int j = 0; j < strlen(ft[i].name)+1; j++) { // +1 for null byte
-			fprintf(out, "0x%x, ", ft[i].name[j]);
+			PRINT_BYTE(out, ft[i].name[j]);
 			LINE_BREAK(lc, out);
 		}
 		for (int j = 0; j < B_IN_SZ; j++) {
-			fprintf(out, "0x%x, ", (unsigned char)((ft[i].size >> (j*8)) & 0xff) );
+			PRINT_BYTE(out, (unsigned char)((ft[i].size >> (j*8)) & 0xff) );
 			LINE_BREAK(lc, out);
 		}
 	}
