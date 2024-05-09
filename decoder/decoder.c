@@ -21,20 +21,44 @@ static bool validate_ext(const char* ext) {
 	return false;
 }
 
+// needed to keep all images together
+static int ext_cmp(const char* ext1, const char* ext2) {
+	static const struct {
+		const char* ext;
+		int val;
+	} map[] = {
+		{"bmp", 0},
+		{"jpg", 0},
+		{"png", 0},
+		{"svg", 0},
+		{"ttf", 1},
+		{"wav", 2},
+		{"ogg", 2},
+		{"lua", 3},
+		{NULL, -1}
+	};
+	int val1, val2;
+	for (int i = 0; map[i].ext; i++) {
+		if (strcmp(ext1, map[i].ext) == 0) val1 = map[i].val;
+		if (strcmp(ext2, map[i].ext) == 0) val2 = map[i].val;
+	}
+	return val1 - val2;
+}
+
 // doing this hopefully improves cache coherency during runtime
 static file_table* sort(const int argc, char** const argv) {
 	file_table* ft = malloc(sizeof(file_table)*argc); // one extra for NULL-termination
 	int count = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!validate_ext(extension(argv[i]))) continue;
-		ft[i-1].name = argv[i];
+		ft[count].name = argv[i];
 		count++;
 	}
 	ft[count].name = NULL;
 	file_table temp;
 	for (int i = 0; ft[i+1].name; i++) {
 		for (int j = 0; ft[j+i+1].name; j++) {
-			if (strcmp(extension(ft[j].name), extension(ft[j+1].name)) > 0) {
+			if (ext_cmp(extension(ft[j].name), extension(ft[j+1].name)) > 0) {
 				temp = ft[j];
 				ft[j] = ft[j+1];
 				ft[j+1] = temp;

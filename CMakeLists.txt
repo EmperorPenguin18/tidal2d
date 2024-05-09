@@ -42,7 +42,7 @@ endif()
 
 file(GLOB_RECURSE engine_sources engine/*.c)
 
-set(resource_path OFF CACHE STRING "")
+set(resource_path "" CACHE STRING "")
 
 if (NOT "${resource_path}" STREQUAL "")
 	file(REAL_PATH ${resource_path} real_path)
@@ -66,6 +66,7 @@ fetch_header(${title} sokol sokol_gfx.h /usr/include https://github.com/floooh/s
 fetch_header(${title} sokol_gp sokol_gp.h /usr/include https://github.com/edubart/sokol_gp a6ce39f93fb2da2c47b70cdd4d1c0a35c0e756ef "") # Commit Mar 22, 2024
 fetch_header(${title} physac physac.h /usr/include https://github.com/victorfisac/physac 29d9fc06860b54571a02402fff6fa8572d19bd12 "src") # Commit Dec 10, 2023
 fetch_header(${title} minilua minilua.h /usr/include https://github.com/edubart/minilua 79a00fab1639517de38a372db9e60fd6cc730d69 "") # v5.4.6
+fetch_header(${title} fontstash fontstash.h /usr/include https://github.com/memononen/fontstash b5ddc9741061343740d85d636d782ed3e07cf7be "src") # Commit Apr 22, 2019
 
 # Platform linking
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -74,6 +75,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	target_link_libraries(${title} PRIVATE Xcursor)
 	target_link_libraries(${title} PRIVATE GL)
 	target_link_libraries(${title} PRIVATE m)
+	target_link_libraries(${title} PRIVATE asound)
 #elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	#target_link_libraries(decoder PRIVATE m)
 endif()

@@ -1,8 +1,11 @@
 #include "common.h"
 
+#include <stdint.h>
+
 #include <stb_image.h>
+#define STB_VORBIS_HEADER_ONLY
+#include <stb_vorbis.c>
 #include <nanosvgrast.h>
-//#include <stb_vorbis.c>
 
 #define FSIZE(fp, sz) \
 	fseek(fp, 0L, SEEK_END); \
@@ -41,14 +44,33 @@ static unsigned char* basic_handler(const char* filename, size_t* size) {
 	return out;
 }
 
+static void short_to_float(unsigned char* buffer, const size_t len) {
+	for (size_t i = (len/2)-2; i != SIZE_MAX; i -= 1) {
+		union {
+			uint32_t u32;
+			float f32;
+		} x;
+		x.u32 = (uint16_t)*(int16_t*)(buffer+(i*2)) ^ 0x43808000u;
+		x.f32 = x.f32 - 257.0f;
+		memcpy(buffer+(i*4), &x.f32, sizeof(float));
+	}
+}
+
 static unsigned char* wav_handler(const char* filename, size_t* size) {
 	//TODO
 	return NULL;
 }
 
 static unsigned char* ogg_handler(const char* filename, size_t* size) {
-	//TODO
-	return NULL;
+	unsigned char* out = NULL;
+	int channels, freq;
+	*size = stb_vorbis_decode_filename(filename, &channels, &freq, (short**)&out);
+	if (*size == -1) return NULL;
+	*size = *size * sizeof(short) * channels;
+	REALLOC(out, (*size)*2);
+	short_to_float(out, *size);
+	*size *= 2;
+	return out;
 }
 
 static unsigned char* txt_handler(const char* filename, size_t* size) {

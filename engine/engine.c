@@ -8,11 +8,15 @@
 engine e; // global state
 
 static void frame(void) {
-	int width = sapp_width(), height = sapp_height();
-	float ratio = width/(float)height;
+	float width = sapp_widthf(), height = sapp_heightf();
+	float ratio = width/height;
 
 	sgp_begin(width, height);
 	sgp_viewport(0, 0, width, height);
+	fonsClearState(e.fs);
+	sgl_defaults();
+	sgl_matrix_mode_projection();
+	sgl_ortho(0.0f, width, height, 0.0f, -1.0f, +1.0f);
 
 	sgp_set_color(0.5f, 0.5f, 0.5f, 1.0f);
 	sgp_clear();
@@ -21,25 +25,45 @@ static void frame(void) {
 
 	float time = sapp_frame_count() * sapp_frame_duration();
 	for (int i = 0; i < e.ins_num; i++) {
+		sgp_rect* dst = &e.ins_rect[i].dst;
 		PhysicsBody body = GetPhysicsBody(i);
 		if (body) {
-			e.ins_rect[i].dst.x = body->position.x;
-			e.ins_rect[i].dst.y = body->position.y;
+			dst->x = body->position.x;
+			dst->y = body->position.y;
 		}
+		fonsSetFont(e.fs, e.ins[i].font);
+		fonsSetSize(e.fs, 16.0f);
+		fonsSetColor(e.fs, sfons_rgba(0, 0, 0, 255));
+		fonsDrawText(e.fs, dst->x, dst->y+12.0f, e.ins[i].str, NULL);
 	}
 	sgp_set_image(0, e.image);
 	sgp_draw_textured_rects(0, &e.ins_rect[0], e.ins_num);
 	sgp_reset_image(0);
 
+	sfons_flush(e.fs);
 	sg_pass pass = {.swapchain = sglue_swapchain()};
 	sg_begin_pass(&pass);
 	sgp_flush();
 	sgp_end();
+	sgl_draw();
 	sg_end_pass();
 	sg_commit();
 }
 
 static void event(const sapp_event* event) {
+}
+
+/*void mix(const void* newbuf, size_t len) {
+	//temp
+	memcpy(e.buffer, newbuf, MIN(len, 1024));
+}*/
+
+static void stream_cb(float* buffer, int num_frames, int num_channels) {
+	const int num_samples = num_frames * num_channels;
+	const int cpy_size = MIN(num_samples*4, e.music_len-e.music_pos);
+	memcpy(buffer, data_array+e.music_offset+e.music_pos, cpy_size);
+	e.music_pos += cpy_size;
+	if (e.music_pos >= e.music_len) e.music_pos = 0;
 }
 
 static void init(void) {
@@ -49,21 +73,44 @@ static void init(void) {
 	sg_setup(&sgdesc);
 	if (!sg_isvalid()) exit(EXIT_FAILURE);
 
+	sgl_desc_t sgldesc = {0};
+	sgl_setup(&sgldesc);
+
 	sgp_desc sgpdesc = {0};
 	sgp_setup(&sgpdesc);
 	if (!sgp_is_valid()) exit(EXIT_FAILURE);
 
 	size_t offset;
-	DATA_LOOP(offset);
-	sg_range range = { .ptr = data_array, .size = offset };
+	DATA_LOOP(offset,
+		if (strcmp("bmp", extension(data_info+i)) != 0 &&
+		strcmp("jpg", extension(data_info+i)) != 0 &&
+		strcmp("png", extension(data_info+i)) != 0 &&
+		strcmp("svg", extension(data_info+i)) != 0) {
+			if (e.img_begin != offset) break;
+			e.img_begin += size + padding;
+		}
+	);
+	sg_range range = { .ptr = data_array+e.img_begin, .size = offset-e.img_begin };
 	sg_image_data image_data = { .subimage[0][0] = range };
 	sg_image_desc image_desc = {
-		.width = offset/4,
+		.width = (offset-e.img_begin)/4,
 		.height = 1,
 		.data = image_data,
 	};
 	e.image = sg_make_image(&image_desc);
 	if (sg_query_image_state(e.image) != SG_RESOURCESTATE_VALID) exit(EXIT_FAILURE);
+
+	e.fs = sfons_create(&(sfons_desc_t){
+		.width = 512,
+		.height = 512,
+        });
+	DATA_LOOP(offset,
+		if (strcmp(extension(data_info+i), "ttf") == 0)
+			fonsAddFontMem(e.fs, basename(data_info+i), (unsigned char*)data_array+offset, size, 0); // ignore warning
+	);
+
+	saudio_setup(&(saudio_desc){ .stream_cb = stream_cb });
+	if (!saudio_isvalid()) exit(EXIT_FAILURE);
 
 	InitPhysics();
 
@@ -81,18 +128,25 @@ static void init(void) {
 static void cleanup(void) {
 	lua_close(e.L);
 	ClosePhysics();
+	saudio_shutdown();
+	sfons_destroy(e.fs);
 	sgp_shutdown();
+	sgl_shutdown();
 	sg_shutdown();
 }
 
 sapp_desc sokol_main(int argc, char* argv[]) {
 	(void)argc;
 	(void)argv;
+	e.win_w = 240;
+	e.win_h = 160;
 	return (sapp_desc){
 		.init_cb = init,
 		.frame_cb = frame,
 		.cleanup_cb = cleanup,
 		.event_cb = event,
 		.window_title = "Tidal2D Game",
+		.width = e.win_w,
+		.height = e.win_h,
 	};
 }

@@ -30,10 +30,13 @@ static const char* basename(const char* filename) {
 			((size_t)data_info[i+len+5] << 5*8) | \
 			((size_t)data_info[i+len+6] << 6*8) | \
 			((size_t)data_info[i+len+7] << 7*8); \
-		__VA_ARGS__ \
 		unsigned char padding = (size % 4 == 0) ? 0 : 4 - (size % 4); \
+		__VA_ARGS__ \
 		offset += size + padding; \
 		i += len + 8; \
 	}
+
+#define MIN(one, two) \
+	(one < two) ? one : two
 
 #endif
