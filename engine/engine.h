@@ -14,26 +14,26 @@
 
 #define NUM_INSTANCES PHYSAC_MAX_BODIES
 
-typedef struct instance {
-	float w;
-	float h;
-	int font;
-	char str[64]; // maybe could be changed at compile time?
-} instance;
-
 typedef struct engine {
 	lua_State* L;
 	FONScontext* fs;
 	size_t img_begin;
 	sg_image image;
+	float win_w, win_h;
+	size_t music_offset, music_pos, music_len;
+	int events[_SAPP_EVENTTYPE_NUM];
+	struct {
+		float r, g, b, a;
+	} bkg_col;
 	int ins_num;
-	float win_w;
-	float win_h;
-	size_t music_offset;
-	size_t music_pos;
-	size_t music_len;
-	instance ins[NUM_INSTANCES];
-	sgp_textured_rect ins_rect[NUM_INSTANCES];
+	struct {
+		float w, h, orient;
+		int font;
+		uint32_t font_col;
+		float font_size;
+		char str[64]; // maybe could be changed at compile time?
+		sgp_textured_rect rect;
+	} ins[NUM_INSTANCES];
 } engine;
 
 extern const unsigned char data_array[];

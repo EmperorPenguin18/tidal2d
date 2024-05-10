@@ -1,6 +1,8 @@
 #include "common.h"
 #include "engine.h"
 
+#include <math.h>
+
 extern engine e;
 void mix(const void*, size_t);
 
@@ -25,12 +27,12 @@ int tidal_set_sprite(lua_State* L) {
 	DATA_LOOP(offset,
 		if (strcmp(name, basename(data_info+i)) == 0) break;
 	);
-	e.ins_rect[index].dst.w = e.ins[index].w;
-	e.ins_rect[index].dst.h = e.ins[index].h;
-	e.ins_rect[index].src.x = (offset-e.img_begin)/4;
-	e.ins_rect[index].src.y = 0;
-	e.ins_rect[index].src.w = e.ins_rect[index].dst.w;
-	e.ins_rect[index].src.h = e.ins_rect[index].dst.h;
+	e.ins[index].rect.dst.w = e.ins[index].w;
+	e.ins[index].rect.dst.h = e.ins[index].h;
+	e.ins[index].rect.src.x = (offset-e.img_begin)/4;
+	e.ins[index].rect.src.y = 0;
+	e.ins[index].rect.src.w = e.ins[index].rect.dst.w;
+	e.ins[index].rect.src.h = e.ins[index].rect.dst.h;
 	return 0;
 }
 
@@ -40,11 +42,11 @@ int tidal_set_shape(lua_State* L) {
 	PhysicsBody body;
 	if (body = GetPhysicsBody(index)) DestroyPhysicsBody(body);
 	if (strcmp(shape, "box") == 0) {
-		sgp_rect dst = e.ins_rect[index].dst;
+		sgp_rect dst = e.ins[index].rect.dst;
 		Vector2 pos = {dst.x, dst.y};
 		body = CreatePhysicsBodyRectangle(pos, e.ins[index].w, e.ins[index].h, 1.0f);
 	} else if (strcmp(shape, "wall") == 0) {
-		sgp_rect dst = e.ins_rect[index].dst;
+		sgp_rect dst = e.ins[index].rect.dst;
 		Vector2 pos = {dst.x, dst.y};
 		body = CreatePhysicsBodyRectangle(pos, e.ins[index].w, e.ins[index].h, 1.0f);
 		body->enabled = false;
@@ -64,8 +66,8 @@ int tidal_set_gravity(lua_State* L) {
 
 int tidal_set_pos(lua_State* L) {
 	int index = luaL_checkinteger(L, 1);
-	e.ins_rect[index].dst.x = luaL_checknumber(L, 2);
-	e.ins_rect[index].dst.y = luaL_checknumber(L, 3);
+	e.ins[index].rect.dst.x = luaL_checknumber(L, 2);
+	e.ins[index].rect.dst.y = luaL_checknumber(L, 3);
 	return 0;
 }
 
@@ -73,6 +75,8 @@ int tidal_set_font(lua_State* L) {
 	int index = luaL_checkinteger(L, 1);
 	const char* font = luaL_checkstring(L, 2);
 	e.ins[index].font = fonsGetFontByName(e.fs, font);
+	e.ins[index].font_size = 16.0f;
+	e.ins[index].font_col = sfons_rgba(0, 0, 0, 255);
 	return 0;
 }
 
@@ -95,5 +99,60 @@ int tidal_set_music(lua_State* L) {
 			break;
 		}
 	);
+	return 0;
+}
+
+static void register_callback(lua_State* L, sapp_event_type type) {
+	e.events[type] = luaL_ref(L, LUA_REGISTRYINDEX);
+}
+
+int tidal_set_cb_keydown(lua_State* L) {
+	if (!lua_isfunction(L, 1)) return luaL_error(L, "must call back to a function");
+	register_callback(L, SAPP_EVENTTYPE_KEY_DOWN);
+	return 0;
+}
+
+int tidal_set_background_colour(lua_State* L) {
+	int r = luaL_checkinteger(L, 1);
+	int g = luaL_checkinteger(L, 2);
+	int b = luaL_checkinteger(L, 3);
+	int a = luaL_checkinteger(L, 4);
+	if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
+		return luaL_error(L, "invalid colour values");
+	e.bkg_col.r = (float)r / 255.0f;
+	e.bkg_col.g = (float)g / 255.0f;
+	e.bkg_col.b = (float)b / 255.0f;
+	e.bkg_col.a = (float)a / 255.0f;
+	return 0;
+}
+
+int tidal_set_font_colour(lua_State* L) {
+	int index = luaL_checkinteger(L, 1);
+	int r = luaL_checkinteger(L, 2);
+	int g = luaL_checkinteger(L, 3);
+	int b = luaL_checkinteger(L, 4);
+	int a = luaL_checkinteger(L, 5);
+	if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
+		return luaL_error(L, "invalid colour values");
+	e.ins[index].font_col = sfons_rgba(r, g, b, a);
+	return 0;
+}
+
+int tidal_set_font_size(lua_State* L) {
+	int index = luaL_checkinteger(L, 1);
+	float size = luaL_checknumber(L, 2);
+	if (size <= 0) return luaL_error(L, "font size must be greater than 0");
+	e.ins[index].font_size = size;
+	return 0;
+}
+
+int tidal_set_rotation(lua_State* L) {
+	int index = luaL_checkinteger(L, 1);
+	e.ins[index].orient = luaL_checknumber(L, 2) * M_PI / 180;
+	return 0;
+}
+
+int tidal_quit(lua_State* L) {
+	sapp_quit();
 	return 0;
 }
