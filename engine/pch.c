@@ -14,9 +14,9 @@
 #include <sokol_fontstash.h>
 #include <sokol_audio.h>
 
-#define PHYSAC_IMPLEMENTATION
+/*#define PHYSAC_IMPLEMENTATION
 #define PHYSAC_STANDALONE
-#include <physac.h>
+#include <physac.h>*/
 
 #define LUA_IMPL
 #include <minilua.h>

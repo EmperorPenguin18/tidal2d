@@ -4,7 +4,6 @@ include(FetchContent)
 
 file(GLOB_RECURSE decoder_sources decoder/*.c)
 
-#CMAKE_CROSSCOMPILING?
 add_executable(decoder ${decoder_sources})
 
 set(CMAKE_C_FLAGS_DEBUG_INIT "-Wall -pedantic")
@@ -27,8 +26,8 @@ function(fetch_header target name example path url tag repo_path)
 		FetchContent_GetProperties(${name})
 		if(NOT ${name}_POPULATED)
 			FetchContent_Populate(${name})
-			target_include_directories(${target} PRIVATE "${${name}_SOURCE_DIR}/${repo_path}")
 		endif()
+		target_include_directories(${target} PRIVATE "${${name}_SOURCE_DIR}/${repo_path}")
 	endif()
 endfunction()
 
@@ -52,17 +51,20 @@ if (NOT "${resource_path}" STREQUAL "")
 	file(GLOB_RECURSE resources "${real_path}/*")
 endif()
 
-add_custom_command(
-	OUTPUT data.c
-	COMMAND decoder ${resources}
-	DEPENDS decoder ${resources}
-	)
+if (NOT CMAKE_CROSSCOMPILING)
+	add_custom_command(
+		OUTPUT data.c
+		COMMAND decoder ${resources}
+		DEPENDS decoder ${resources}
+		)
+endif()
 
 set(title "game" CACHE STRING "")
 
 add_executable(${title} ${engine_sources} data.c)
 
 fetch_header(${title} sokol sokol_gfx.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "") # Commit May 6, 2024
+fetch_header(${title} sokol sokol_gl.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "util") # Commit May 6, 2024
 fetch_header(${title} sokol_gp sokol_gp.h /usr/include https://github.com/edubart/sokol_gp a6ce39f93fb2da2c47b70cdd4d1c0a35c0e756ef "") # Commit Mar 22, 2024
 fetch_header(${title} physac physac.h /usr/include https://github.com/victorfisac/physac 29d9fc06860b54571a02402fff6fa8572d19bd12 "src") # Commit Dec 10, 2023
 fetch_header(${title} minilua minilua.h /usr/include https://github.com/edubart/minilua 79a00fab1639517de38a372db9e60fd6cc730d69 "") # v5.4.6
@@ -76,6 +78,22 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	target_link_libraries(${title} PRIVATE GL)
 	target_link_libraries(${title} PRIVATE m)
 	target_link_libraries(${title} PRIVATE asound)
-#elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-	#target_link_libraries(decoder PRIVATE m)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+	set_target_properties(${title} PROPERTIES OUTPUT_NAME "index")
+	set_target_properties(${title} PROPERTIES SUFFIX ".html")
+	#target_link_options(${title} PRIVATE "--shell-file ${CMAKE_SOURCE_DIR}/index.html")
+	target_link_options(${title} PRIVATE "-sFULL_ES3")
+	target_link_options(${title} PRIVATE "-sTOTAL_MEMORY=67108864")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	target_compile_options(${title} PRIVATE "-mwin32")
+	target_link_libraries(${title} PRIVATE kernel32)
+	target_link_libraries(${title} PRIVATE user32)
+	target_link_libraries(${title} PRIVATE shell32)
+	target_link_libraries(${title} PRIVATE gdi32)
+	#target_link_libraries(${title} PRIVATE ssp)
 endif()
+
+#file(ARCHIVE_CREATE
+#OUTPUT "${title}_${CMAKE_SYSTEM_NAME}.zip"
+#PATHS ${title}
+#FORMAT "zip")

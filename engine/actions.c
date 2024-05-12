@@ -15,52 +15,69 @@ int tidal_create(lua_State* L) {
 
 int tidal_set_size(lua_State* L) {
 	int index = luaL_checkinteger(L, 1);
-	e.ins[index].w = luaL_checknumber(L, 2);
-	e.ins[index].h = luaL_checknumber(L, 3);
+	e.ins[index].rect.dst.w = luaL_checknumber(L, 2);
+	e.ins[index].rect.dst.h = luaL_checknumber(L, 3);
 	return 0;
 }
 
 int tidal_set_sprite(lua_State* L) {
 	int index = luaL_checkinteger(L, 1);
 	const char* name = luaL_checkstring(L, 2);
+	sgp_rect* dst = &e.ins[index].rect.dst;
+
 	size_t offset;
 	DATA_LOOP(offset,
 		if (strcmp(name, basename(data_info+i)) == 0) break;
 	);
-	e.ins[index].rect.dst.w = e.ins[index].w;
-	e.ins[index].rect.dst.h = e.ins[index].h;
-	e.ins[index].rect.src.x = (offset-e.img_begin)/4;
+	//sg_query_row_pitch
+	//sg_query_surface_pitch
+	sg_destroy_image(e.ins[index].image);
+	const sg_range range = { .ptr = data_array+offset, .size = e.img_end-offset };
+	const sg_image_data image_data = { .subimage[0][0] = range };
+	const sg_image_desc image_desc = {
+		.width = dst->w,
+		.height = (e.img_end-offset)/(4*dst->w),
+		.data = image_data,
+	};
+	e.ins[index].image = sg_make_image(&image_desc);
+	const sg_resource_state state = sg_query_image_state(e.ins[index].image);
+	if (state != SG_RESOURCESTATE_VALID) {
+		fprintf(stderr, "image state invalid: %d\n", state);
+		exit(EXIT_FAILURE);
+	}
+
+	e.ins[index].rect.src.x = 0;
 	e.ins[index].rect.src.y = 0;
-	e.ins[index].rect.src.w = e.ins[index].rect.dst.w;
-	e.ins[index].rect.src.h = e.ins[index].rect.dst.h;
+	e.ins[index].rect.src.w = dst->w;
+	e.ins[index].rect.src.h = dst->h;
 	return 0;
 }
 
 int tidal_set_shape(lua_State* L) {
 	int index = luaL_checkinteger(L, 1);
 	const char* shape = luaL_checkstring(L, 2);
-	PhysicsBody body;
+	/*PhysicsBody body;
 	if (body = GetPhysicsBody(index)) DestroyPhysicsBody(body);
 	if (strcmp(shape, "box") == 0) {
 		sgp_rect dst = e.ins[index].rect.dst;
 		Vector2 pos = {dst.x, dst.y};
-		body = CreatePhysicsBodyRectangle(pos, e.ins[index].w, e.ins[index].h, 1.0f);
+		body = CreatePhysicsBodyRectangle(pos, dst.w, dst.h, 1.0f);
 	} else if (strcmp(shape, "wall") == 0) {
 		sgp_rect dst = e.ins[index].rect.dst;
 		Vector2 pos = {dst.x, dst.y};
-		body = CreatePhysicsBodyRectangle(pos, e.ins[index].w, e.ins[index].h, 1.0f);
+		body = CreatePhysicsBodyRectangle(pos, dst.w, dst.h, 1.0f);
 		body->enabled = false;
 	// add more shapes
 	} else {
 		return luaL_error(L, "incorrect shape name");
-	}
+	}*/
 	return 0;
 }
 
 int tidal_set_gravity(lua_State* L) {
 	float x = luaL_checknumber(L, 1);
 	float y = luaL_checknumber(L, 2);
-	SetPhysicsGravity(x, y);
+	//SetPhysicsGravity(x, y);
 	return 0;
 }
 

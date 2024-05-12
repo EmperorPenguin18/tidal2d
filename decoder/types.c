@@ -56,6 +56,11 @@ static void short_to_float(unsigned char* buffer, const size_t len) {
 	}
 }
 
+#define SHORT_TO_FLOAT(var, size) \
+	REALLOC(var, size*2); \
+	short_to_float(var, size); \
+	size *= 2;
+
 static unsigned char* wav_handler(const char* filename, size_t* size) {
 	//TODO
 	return NULL;
@@ -67,9 +72,7 @@ static unsigned char* ogg_handler(const char* filename, size_t* size) {
 	*size = stb_vorbis_decode_filename(filename, &channels, &freq, (short**)&out);
 	if (*size == -1) return NULL;
 	*size = *size * sizeof(short) * channels;
-	REALLOC(out, (*size)*2);
-	short_to_float(out, *size);
-	*size *= 2;
+	SHORT_TO_FLOAT(out, *size);
 	return out;
 }
 
