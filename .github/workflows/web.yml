@@ -1,0 +1,28 @@
+name: Emscripten CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: clone emsdk
+      run: git clone https://github.com/emscripten-core/emsdk.git
+    - name: emsdk install
+      run: ./emsdk/emsdk install latest
+    - name: emsdk activate
+      run: ./emsdk/emsdk activate latest
+    - name: add to path
+      run: echo /home/runner/work/tidal2d/tidal2d/emsdk/upstream/emscripten >> $GITHUB_PATH
+    - name: configure
+      run: emcmake cmake . -DCMAKE_BUILD_TYPE=Release
+    - name: build
+      run: cmake --build .
+
