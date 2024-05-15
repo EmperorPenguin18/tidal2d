@@ -7,11 +7,13 @@
 
 engine e; // global state
 
+static const char* extension(const char* filename) {
+	return strrchr(filename, '.')+1;
+}
+
 static void frame(void) {
 	const float width = sapp_widthf(), height = sapp_heightf();
-	const float ratio = e.win_w/e.win_h;
 
-	printf("here0\n"); //debug
 	sgp_begin(width, height);
 	sgp_viewport(0, 0, width, height);
 	fonsClearState(e.fs);
@@ -28,17 +30,15 @@ static void frame(void) {
 	sgp_scissor(0, 0, scale*e.win_w, scale*e.win_h);
 	sgp_set_blend_mode(SGP_BLENDMODE_BLEND);
 
-	printf("here1\n"); //debug
-	const float time = sapp_frame_count() * sapp_frame_duration();
 	for (int i = 0; i < e.ins_num; i++) {
 		sgp_scale(scale, scale);
 		sgp_rect* dst = &e.ins[i].rect.dst;
-		/*PhysicsBody body = GetPhysicsBody(i);
+		PhysicsBody body = GetPhysicsBody(i);
 		if (body) {
 			dst->x = body->position.x;
 			dst->y = body->position.y;
 			e.ins[i].orient = body->orient;
-		}*/
+		}
 		const float font_size = e.ins[i].font_size*scale;
 		fonsSetFont(e.fs, e.ins[i].font);
 		fonsSetSize(e.fs, font_size);
@@ -123,7 +123,7 @@ static void stream_cb(float* buffer, int num_frames, int num_channels) {
 }
 
 static void init(void) {
-	DATA_LOOP(e.array_size);
+	DATA_LOOP(e.array_size,;);
 	DATA_LOOP(e.img_end, // works because images are at beginning of array
 		if (strcmp("bmp", extension(data_info+i)) != 0 &&
 		strcmp("jpg", extension(data_info+i)) != 0 &&
@@ -149,7 +149,7 @@ static void init(void) {
 		.width = 512,
 		.height = 512,
         });
-	size_t offset;
+	uint64_t offset;
 	DATA_LOOP(offset,
 		if (strcmp(extension(data_info+i), "ttf") == 0)
 			fonsAddFontMem(e.fs, basename(data_info+i), (unsigned char*)data_array+offset, size, 0); // ignore warning
@@ -158,16 +158,17 @@ static void init(void) {
 	saudio_setup(&(saudio_desc){ .stream_cb = stream_cb });
 	if (!saudio_isvalid()) exit(EXIT_FAILURE);
 
-	//InitPhysics();
+	InitPhysics();
 
 	e.L = luaL_newstate();
 	luaL_openlibs(e.L);
 	luaL_newlib(e.L, actions);
 	lua_setglobal(e.L, "tidal");
 	DATA_LOOP(offset,
-		if (strcmp(extension(data_info+i), "lua") == 0)
-			if (luaL_dostring(e.L, data_array+offset) != 0)
+		if (strcmp(extension(data_info+i), "lua") == 0) {
+			if (luaL_dostring(e.L, (const char*)data_array+offset) != 0)
 				fprintf(stderr, "Script failed: %s\n%s\n%s\n", basename(data_info+i), data_array+offset, lua_tostring(e.L, -1));
+		}
 	)
 }
 
@@ -175,7 +176,7 @@ static void cleanup(void) {
 	for (int i = 0; i < e.ins_num; i++) sg_destroy_image(e.ins[i].image);
 	for (int i = 0; i < _SAPP_EVENTTYPE_NUM; i++) luaL_unref(e.L, LUA_REGISTRYINDEX, e.events[i]);
 	lua_close(e.L);
-	//ClosePhysics();
+	ClosePhysics();
 	saudio_shutdown();
 	sfons_destroy(e.fs);
 	sgp_shutdown();

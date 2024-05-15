@@ -21,8 +21,8 @@ typedef struct engine {
 	lua_State* L;
 	FONScontext* fs;
 	float win_w, win_h;
-	size_t music_offset, music_pos, music_len;
-	size_t array_size, img_end;
+	uint64_t music_offset, music_pos, music_len;
+	uint64_t array_size, img_end;
 	int events[_SAPP_EVENTTYPE_NUM];
 	struct {
 		float r, g, b, a;
@@ -39,7 +39,7 @@ typedef struct engine {
 	} ins[NUM_INSTANCES];
 } engine;
 
-extern const unsigned char data_array[];
-extern const unsigned char data_info[];
+extern const uint8_t data_array[];
+extern const char data_info[];
 
 #endif

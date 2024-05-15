@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef struct file_table {
 	const char* name;
@@ -17,7 +18,7 @@ static bool validate_ext(const char* ext) {
 	const char* s = valid_extensions[0];
 	do
 		if (strcmp(s, ext) == 0) return true;
-	while (s = strchr(s, '\0')+1);
+	while ((s = strchr(s, '\0')+1));
 	return false;
 }
 
@@ -37,7 +38,7 @@ static int ext_cmp(const char* ext1, const char* ext2) {
 		{"lua", 3},
 		{NULL, -1}
 	};
-	int val1, val2;
+	int val1 = 0, val2 = 0;
 	for (int i = 0; map[i].ext; i++) {
 		if (strcmp(ext1, map[i].ext) == 0) val1 = map[i].val;
 		if (strcmp(ext2, map[i].ext) == 0) val2 = map[i].val;
@@ -103,7 +104,7 @@ int main(int argc, char** argv) {
 		}
 		free(buf);
 	}
-	err = fputs("\n};\n\nextern const unsigned char data_info[];\n\nconst unsigned char data_info[] = {\n  ", out);
+	err = fputs("0x0\n};\n\nextern const char data_info[];\n\nconst char data_info[] = {\n  ", out);
 	CHECK_ERROR(err > 0, "couldn't write to file");
 	lc = 0;
 	for (int i = 0; ft[i].name; i++) {
@@ -112,7 +113,7 @@ int main(int argc, char** argv) {
 			LINE_BREAK(lc, out);
 		}
 		for (int j = 0; j < B_IN_SZ; j++) {
-			PRINT_BYTE(out, (unsigned char)((ft[i].size >> (j*8)) & 0xff) );
+			PRINT_BYTE(out, (uint8_t)((ft[i].size >> (j*8)) & 0xff) );
 			LINE_BREAK(lc, out);
 		}
 	}

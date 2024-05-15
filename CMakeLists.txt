@@ -2,21 +2,20 @@ cmake_minimum_required(VERSION 3.28)
 project(tidal2d)
 include(FetchContent)
 
-file(GLOB_RECURSE decoder_sources decoder/*.c)
-
-add_executable(decoder ${decoder_sources})
-
-set(CMAKE_C_FLAGS_DEBUG_INIT "-Wall -pedantic")
+# More warnings
+add_compile_options(-Wall -pedantic)
+# For multi-configs like MSVC
 set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE})
 
+# Helper function for header-only libs
 function(fetch_header target name example path url tag repo_path)
-	find_path(
-		${name}_INCLUDE_DIR
-		NAMES "${example}"
-		PATHS "${path}"
+	try_compile(
+		result
+		SOURCE_FROM_CONTENT test.c "#include <${example}>"
+		CMAKE_FLAGS -DINCLUDE_DIRECTORIES=${path}
 	)
-	if (${name}_INCLUDE_DIR)
-		target_include_directories(${target} PRIVATE ${${name}_INCLUDE_DIR})
+	if (result)
+		target_include_directories(${target} PRIVATE ${path})
 	else()
 		FetchContent_Declare(
 			${name}
@@ -31,18 +30,56 @@ function(fetch_header target name example path url tag repo_path)
 	endif()
 endfunction()
 
-fetch_header(decoder stb stb_image.h /usr/include/stb https://github.com/nothings/stb ae721c50eaf761660b4f90cc590453cdb0c2acd0 "") # Commit Feb 13, 2024
-fetch_header(decoder nanosvg nanosvgrast.h /usr/include/nanosvg https://github.com/memononen/nanosvg 93ce879dc4c04a3ef1758428ec80083c38610b1f "src") # Commit Dec 29, 2023
-
-# Platform linking
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	target_link_libraries(decoder PRIVATE m)
+# Cross compilation settings
+set(HOST_SYSTEM_NAME ${CMAKE_SYSTEM_NAME} CACHE STRING "")
+set(CURRENT_COMPILER "NATIVE")
+set(NATIVE_C_COMPILER CMAKE_C_COMPILER)
+set(HOST_C_COMPILER "")
+set(CROSSCOMPILING ${CMAKE_CROSSCOMPILING})
+if (NOT HOST_SYSTEM_NAME MATCHES ${CMAKE_SYSTEM_NAME})
+	set(CROSSCOMPILING true)
+	if (HOST_SYSTEM_NAME MATCHES Linux)
+		# Nothing for now
+	elseif (HOST_SYSTEM_NAME MATCHES Emscripten)
+		set(HOST_C_COMPILER "emcc")
+	elseif (HOST_SYSTEM_NAME MATCHES Windows)
+		set(HOST_C_COMPILER "x86_64-w64-mingw32-gcc")
+	endif()
 endif()
 
-file(GLOB_RECURSE engine_sources engine/*.c)
+# Cross compilation macros
+macro(use_host_compiler)
+	if (CROSSCOMPILING AND ${CURRENT_COMPILER} STREQUAL "NATIVE")
+		# Save current native flags
+		set(NATIVE_C_FLAGS ${CMAKE_C_FLAGS} CACHE STRING "GCC flags for the native compiler." FORCE)
 
+		# Change compiler
+		set(CMAKE_SYSTEM_NAME ${HOST_SYSTEM_NAME})
+		#set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
+		set(CMAKE_C_COMPILER ${HOST_C_COMPILER})
+		set(CMAKE_C_FLAGS ${HOST_C_FLAGS})
+		set(CURRENT_COMPILER "HOST" CACHE STRING "Which compiler we are using." FORCE)
+	endif()
+endmacro()
+macro(use_native_compiler)
+	if (${CURRENT_COMPILER} STREQUAL "HOST")
+		# Save current host flags
+		set(HOST_C_FLAGS ${CMAKE_C_FLAGS} CACHE STRING "GCC flags for the host compiler." FORCE)
+
+		# Change compiler
+		set(CMAKE_SYSTEM_NAME ${CMAKE_HOST_SYSTEM_NAME})
+		#set(CMAKE_SYSTEM_PROCESSOR ${NATIVE_SYSTEM_PROCESSOR})
+		set(CMAKE_C_COMPILER ${NATIVE_C_COMPILER})
+		set(CMAKE_C_FLAGS ${NATIVE_C_FLAGS})
+		set(CURRENT_COMPILER "NATIVE" CACHE STRING "Which compiler we are using." FORCE)
+	endif()
+endmacro()
+
+# Build decoder
+add_subdirectory(decoder)
+
+# List resource folder
 set(resource_path "" CACHE STRING "")
-
 if (NOT "${resource_path}" STREQUAL "")
 	file(REAL_PATH ${resource_path} real_path)
 	if (NOT IS_DIRECTORY ${real_path})
@@ -51,49 +88,24 @@ if (NOT "${resource_path}" STREQUAL "")
 	file(GLOB_RECURSE resources "${real_path}/*")
 endif()
 
-if (NOT CMAKE_CROSSCOMPILING)
-	add_custom_command(
-		OUTPUT data.c
-		COMMAND decoder ${resources}
-		DEPENDS decoder ${resources}
-		)
-endif()
+# Generate data array
+add_custom_command(
+	OUTPUT data.c
+	COMMAND decoder
+	ARGS ${resources}
+	DEPENDS decoder ${resources}
+	)
+add_custom_target(
+	data
+	DEPENDS data.c
+	)
+set_source_files_properties(
+	data.c
+	PROPERTIES GENERATED TRUE
+	)
 
+# Allow for custom game titles
 set(title "game" CACHE STRING "")
 
-add_executable(${title} ${engine_sources} data.c)
-
-fetch_header(${title} sokol sokol_gfx.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "") # Commit May 6, 2024
-fetch_header(${title} sokol sokol_gl.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "util") # Commit May 6, 2024
-fetch_header(${title} sokol_gp sokol_gp.h /usr/include https://github.com/edubart/sokol_gp a6ce39f93fb2da2c47b70cdd4d1c0a35c0e756ef "") # Commit Mar 22, 2024
-fetch_header(${title} physac physac.h /usr/include https://github.com/victorfisac/physac 29d9fc06860b54571a02402fff6fa8572d19bd12 "src") # Commit Dec 10, 2023
-fetch_header(${title} minilua minilua.h /usr/include https://github.com/edubart/minilua 79a00fab1639517de38a372db9e60fd6cc730d69 "") # v5.4.6
-fetch_header(${title} fontstash fontstash.h /usr/include https://github.com/memononen/fontstash b5ddc9741061343740d85d636d782ed3e07cf7be "src") # Commit Apr 22, 2019
-
-# Platform linking
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	target_link_libraries(${title} PRIVATE X11)
-	target_link_libraries(${title} PRIVATE Xi)
-	target_link_libraries(${title} PRIVATE Xcursor)
-	target_link_libraries(${title} PRIVATE GL)
-	target_link_libraries(${title} PRIVATE m)
-	target_link_libraries(${title} PRIVATE asound)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
-	set_target_properties(${title} PROPERTIES OUTPUT_NAME "index")
-	set_target_properties(${title} PROPERTIES SUFFIX ".html")
-	#target_link_options(${title} PRIVATE "--shell-file ${CMAKE_SOURCE_DIR}/index.html")
-	target_link_options(${title} PRIVATE "-sFULL_ES3")
-	target_link_options(${title} PRIVATE "-sTOTAL_MEMORY=67108864")
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-	target_compile_options(${title} PRIVATE "-mwin32")
-	target_link_libraries(${title} PRIVATE kernel32)
-	target_link_libraries(${title} PRIVATE user32)
-	target_link_libraries(${title} PRIVATE shell32)
-	target_link_libraries(${title} PRIVATE gdi32)
-	#target_link_libraries(${title} PRIVATE ssp)
-endif()
-
-#file(ARCHIVE_CREATE
-#OUTPUT "${title}_${CMAKE_SYSTEM_NAME}.zip"
-#PATHS ${title}
-#FORMAT "zip")
+# Build game
+add_subdirectory(engine)

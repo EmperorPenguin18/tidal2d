@@ -4,7 +4,7 @@
 #include <string.h>
 
 #define CHECK_ERROR(var, msg) \
-	if (!var) { \
+	if (!(var)) { \
 		fprintf(stderr, "Failure: " #msg "\n"); \
 		return EXIT_FAILURE; \
 	}

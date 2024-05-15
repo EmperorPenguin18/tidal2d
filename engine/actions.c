@@ -25,7 +25,7 @@ int tidal_set_sprite(lua_State* L) {
 	const char* name = luaL_checkstring(L, 2);
 	sgp_rect* dst = &e.ins[index].rect.dst;
 
-	size_t offset;
+	uint64_t offset;
 	DATA_LOOP(offset,
 		if (strcmp(name, basename(data_info+i)) == 0) break;
 	);
@@ -56,8 +56,8 @@ int tidal_set_sprite(lua_State* L) {
 int tidal_set_shape(lua_State* L) {
 	int index = luaL_checkinteger(L, 1);
 	const char* shape = luaL_checkstring(L, 2);
-	/*PhysicsBody body;
-	if (body = GetPhysicsBody(index)) DestroyPhysicsBody(body);
+	PhysicsBody body;
+	if ((body = GetPhysicsBody(index))) DestroyPhysicsBody(body);
 	if (strcmp(shape, "box") == 0) {
 		sgp_rect dst = e.ins[index].rect.dst;
 		Vector2 pos = {dst.x, dst.y};
@@ -70,14 +70,14 @@ int tidal_set_shape(lua_State* L) {
 	// add more shapes
 	} else {
 		return luaL_error(L, "incorrect shape name");
-	}*/
+	}
 	return 0;
 }
 
 int tidal_set_gravity(lua_State* L) {
 	float x = luaL_checknumber(L, 1);
 	float y = luaL_checknumber(L, 2);
-	//SetPhysicsGravity(x, y);
+	SetPhysicsGravity(x, y);
 	return 0;
 }
 
@@ -107,7 +107,7 @@ int tidal_set_text(lua_State* L) {
 
 int tidal_set_music(lua_State* L) {
 	const char* name = luaL_checkstring(L, 1);
-	size_t offset;
+	uint64_t offset;
 	DATA_LOOP(offset,
 		if (strcmp(name, basename(data_info+i)) == 0) {
 			e.music_offset = offset;

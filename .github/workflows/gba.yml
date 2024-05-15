@@ -16,13 +16,15 @@ jobs:
     - name: download devkitpro
       run: wget https://apt.devkitpro.org/install-devkitpro-pacman
     - name: devkitpro install
-      run: chmod +x ./install-devkitpro-pacman && ./install-devkitpro-pacman
+      run: chmod +x ./install-devkitpro-pacman && sudo ./install-devkitpro-pacman
     - name: install pkg
-      run: pacman -S gba-dev
+      run: sudo pacman -S gba-dev
     - name: add to path
       run: source /etc/profile.d/devkit-env.sh
     - name: configure
-      run: arm-none-eabi-cmake . -DCMAKE_BUILD_TYPE=Release
+      run: cmake .. -DHOST_SYSTEM_NAME=GBA -DCMAKE_BUILD_TYPE=Release
+      working-directory: ./build
     - name: build
       run: cmake --build .
+      working-directory: ./build
 
