@@ -70,6 +70,7 @@ static unsigned char* ogg_handler(const char* filename, size_t* size) {
 	unsigned char* out = NULL;
 	int channels, freq;
 	*size = stb_vorbis_decode_filename(filename, &channels, &freq, (short**)&out);
+	assert(channels == 2); assert(freq == 48000);
 	if (*size == -1) return NULL;
 	*size = *size * sizeof(short) * channels;
 	SHORT_TO_FLOAT(out, *size);

@@ -21,6 +21,8 @@ jobs:
       run: ./emsdk/emsdk activate latest
     - name: add to path
       run: echo /home/runner/work/tidal2d/tidal2d/emsdk/upstream/emscripten >> $GITHUB_PATH
+    - name: mkdir
+      run: mkdir build
     - name: configure
       run: cmake .. -DHOST_SYSTEM_NAME=Emscripten -DCMAKE_BUILD_TYPE=Release
       working-directory: ./build

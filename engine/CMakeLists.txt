@@ -8,7 +8,7 @@ add_dependencies(${title} data)
 fetch_header(${title} sokol sokol_gfx.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "") # Commit May 6, 2024
 fetch_header(${title} sokol sokol_gl.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "util") # Commit May 6, 2024
 fetch_header(${title} sokol_gp sokol_gp.h /usr/include https://github.com/edubart/sokol_gp a6ce39f93fb2da2c47b70cdd4d1c0a35c0e756ef "") # Commit Mar 22, 2024
-fetch_header(${title} physac physac.h /usr/include https://github.com/victorfisac/physac 29d9fc06860b54571a02402fff6fa8572d19bd12 "src") # Commit Dec 10, 2023
+fetch_header(${title} physac physac.h /usr/include https://github.com/EmperorPenguin18/physac c8f2816199cbd8559bc6529cac829e5cb02136ef "src") # My fork
 fetch_header(${title} minilua minilua.h /usr/include https://github.com/edubart/minilua 79a00fab1639517de38a372db9e60fd6cc730d69 "") # v5.4.6
 fetch_header(${title} fontstash fontstash.h /usr/include https://github.com/memononen/fontstash b5ddc9741061343740d85d636d782ed3e07cf7be "src") # Commit Apr 22, 2019
 fetch_header(${title} glibc force_link_glibc_2.23.h /usr/include https://github.com/wheybags/glibc_version_header 60d54829f34f21dc440126ad5630e6a9789a48b2 "version_headers/x64") # Commit May 3, 2019
@@ -31,11 +31,6 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Emscripten)
 	#target_link_options(${title} PRIVATE "-sALLOW_MEMORY_GROWTH")
 elseif(CMAKE_SYSTEM_NAME MATCHES Windows)
 	set_target_properties(${title} PROPERTIES SUFFIX ".exe")
-	file(READ "${CMAKE_BINARY_DIR}/_deps/physac-src/src/physac.h" TEXT)
-	string(REPLACE "int __stdcall QueryPerformanceCounter(unsigned long long int* lpPerformanceCount);" "" TEXT "${TEXT}")
-	string(REPLACE "int __stdcall QueryPerformanceFrequency(unsigned long long int* lpFrequency);" "" TEXT "${TEXT}")
-	string(REPLACE "GetCurrentTime" "GetCurrTime" TEXT "${TEXT}")
-	file(WRITE "${CMAKE_BINARY_DIR}/_deps/physac-src/src/physac.h" "${TEXT}")
 	target_link_options(${title} PRIVATE "-static")
 	target_compile_options(${title} PRIVATE "-mwin32")
 	target_link_options(${title} PRIVATE "-mwindows")

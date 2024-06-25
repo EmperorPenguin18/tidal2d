@@ -15,12 +15,16 @@ jobs:
     - uses: actions/checkout@v3
     - name: download devkitpro
       run: wget https://apt.devkitpro.org/install-devkitpro-pacman
+    - name: chmod
+      run: chmod +x ./install-devkitpro-pacman
     - name: devkitpro install
-      run: chmod +x ./install-devkitpro-pacman && sudo ./install-devkitpro-pacman
+      run: sudo ./install-devkitpro-pacman
     - name: install pkg
       run: sudo pacman -S gba-dev
     - name: add to path
       run: source /etc/profile.d/devkit-env.sh
+    - name: mkdir
+      run: mkdir build
     - name: configure
       run: cmake .. -DHOST_SYSTEM_NAME=GBA -DCMAKE_BUILD_TYPE=Release
       working-directory: ./build

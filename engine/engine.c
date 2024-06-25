@@ -155,7 +155,12 @@ static void init(void) {
 			fonsAddFontMem(e.fs, basename(data_info+i), (unsigned char*)data_array+offset, size, 0); // ignore warning
 	);
 
-	saudio_setup(&(saudio_desc){ .stream_cb = stream_cb });
+	saudio_setup(&(saudio_desc){
+		.stream_cb = stream_cb,
+		.sample_rate = 48000,
+		.num_channels = 2,
+		.buffer_frames = 1024,
+	});
 	if (!saudio_isvalid()) exit(EXIT_FAILURE);
 
 	InitPhysics();
@@ -166,7 +171,7 @@ static void init(void) {
 	lua_setglobal(e.L, "tidal");
 	DATA_LOOP(offset,
 		if (strcmp(extension(data_info+i), "lua") == 0) {
-			if (luaL_dostring(e.L, (const char*)data_array+offset) != 0)
+			if (luaL_dostring(e.L, (const char*)data_array+offset) != 0) // ignore warning
 				fprintf(stderr, "Script failed: %s\n%s\n%s\n", basename(data_info+i), data_array+offset, lua_tostring(e.L, -1));
 		}
 	)
