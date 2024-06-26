@@ -1,11 +1,13 @@
 #include "common.h"
 
 #include <stdint.h>
+#include <assert.h>
 
 #include <stb_image.h>
 #define STB_VORBIS_HEADER_ONLY
 #include <stb_vorbis.c>
 #include <nanosvgrast.h>
+#include <dr_wav.h>
 
 #define FSIZE(fp, sz) \
 	fseek(fp, 0L, SEEK_END); \
@@ -62,8 +64,11 @@ static void short_to_float(unsigned char* buffer, const size_t len) {
 	size *= 2;
 
 static unsigned char* wav_handler(const char* filename, size_t* size) {
-	//TODO
-	return NULL;
+	unsigned int channels, sampleRate;
+	float* out = drwav_open_file_and_read_pcm_frames_f32(
+		filename, &channels, &sampleRate, (drwav_uint64*)size, NULL);
+	assert(channels == 2); assert(sampleRate == 48000);
+	return (unsigned char*)out;
 }
 
 static unsigned char* ogg_handler(const char* filename, size_t* size) {
