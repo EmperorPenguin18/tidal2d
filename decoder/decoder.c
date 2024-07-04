@@ -36,6 +36,8 @@ static int ext_cmp(const char* ext1, const char* ext2) {
 		{"wav", 2},
 		{"ogg", 2},
 		{"lua", 3},
+		{"ase", 0},
+		{"aseprite", 0},
 		{NULL, -1}
 	};
 	int val1 = 0, val2 = 0;

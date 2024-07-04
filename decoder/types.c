@@ -8,6 +8,7 @@
 #include <stb_vorbis.c>
 #include <nanosvgrast.h>
 #include <dr_wav.h>
+#include <cute_aseprite.h>
 
 #define FSIZE(fp, sz) \
 	fseek(fp, 0L, SEEK_END); \
@@ -80,6 +81,19 @@ static unsigned char* txt_handler(const char* filename, size_t* size) {
 	return out;
 }
 
+static unsigned char* ase_handler(const char* filename, size_t* size) {
+	ase_t* ase = cute_aseprite_load_from_file(filename, NULL);
+	const size_t frame_size = ase->w*ase->h*sizeof(ase_color_t);
+	*size = frame_size*ase->frame_count;
+	unsigned char* out = malloc(*size);
+	for (int i = 0; i < ase->frame_count; ++i) {
+		ase_frame_t* frame = ase->frames + i;
+		memcpy(out+(i*frame_size), frame->pixels, frame_size);
+	}
+	cute_aseprite_free(ase);
+	return out;
+}
+
 static unsigned char* (*const handlers[])(const char*, size_t*) = {
 	&stb_handler, // bmp
 	&stb_handler, // jpg
@@ -88,7 +102,9 @@ static unsigned char* (*const handlers[])(const char*, size_t*) = {
 	&basic_handler, // ttf
 	&wav_handler,
 	&ogg_handler,
-	&txt_handler // lua
+	&txt_handler, // lua
+	&ase_handler,
+	&ase_handler  // aseprite
 };
 
 unsigned char* extension_handler(const char* filename, size_t* size) {

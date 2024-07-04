@@ -11,3 +11,6 @@
 
 #define DR_WAV_IMPLEMENTATION
 #include <dr_wav.h>
+
+#define CUTE_ASEPRITE_IMPLEMENTATION
+#include <cute_aseprite.h>
