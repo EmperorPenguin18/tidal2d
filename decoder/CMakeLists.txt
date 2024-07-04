@@ -2,6 +2,12 @@ use_native_compiler()
 
 file(GLOB_RECURSE decoder_sources *.c)
 
+set_source_files_properties(
+	"pch.c"
+	PROPERTIES
+	COMPILE_OPTIONS "-w"
+)
+
 add_executable(decoder ${decoder_sources})
 
 fetch_header(decoder stb stb_image.h /usr/include/stb https://github.com/nothings/stb ae721c50eaf761660b4f90cc590453cdb0c2acd0 "") # Commit Feb 13, 2024

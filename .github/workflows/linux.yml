@@ -13,6 +13,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: dependencies
+      run: apt-get install libglvnd-dev
     - name: mkdir
       run: mkdir build
     - name: configure

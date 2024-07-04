@@ -2,6 +2,12 @@ use_host_compiler()
 
 file(GLOB_RECURSE engine_sources *.c)
 
+set_source_files_properties(
+	"pch.c"
+	PROPERTIES
+	COMPILE_OPTIONS "-w"
+)
+
 add_executable(${title} ${engine_sources} ${CMAKE_BINARY_DIR}/data.c)
 add_dependencies(${title} data)
 

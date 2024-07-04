@@ -25,6 +25,8 @@ jobs:
       run: sudo dkp-pacman -S gba-dev --noconfirm
     - name: add to path
       run: source /etc/profile.d/devkit-env.sh
+    - name: dependencies
+      run: apt-get install libglvnd-dev
     - name: mkdir
       run: mkdir build
     - name: configure
