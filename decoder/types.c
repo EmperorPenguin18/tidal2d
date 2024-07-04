@@ -56,7 +56,7 @@ static unsigned char* wav_handler(const char* filename, size_t* size) {
 
 #define SHORT_TO_FLOAT(var, size) \
 	void* temp = malloc(size*4); \
-	drwav_s16_to_f32(temp, var, size); \
+	drwav_s16_to_f32(temp, (drwav_int16*)var, size); \
 	free(var); \
 	var = temp; \
 	size *= 4;

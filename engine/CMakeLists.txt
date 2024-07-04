@@ -42,12 +42,12 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Windows)
 	target_link_options(${title} PRIVATE "-mwindows")
 	target_link_libraries(${title} PRIVATE ole32)
 elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
+	enable_language(OBJC)
 	set_source_files_properties(
 		"pch.c"
 		PROPERTIES
 		LANGUAGE OBJC
 	)
-	#enable_language(OBJC)
 	target_link_libraries(${title} PRIVATE "-framework Foundation")
 	target_link_libraries(${title} PRIVATE Cocoa)
 	target_link_libraries(${title} PRIVATE QuartzCore)
