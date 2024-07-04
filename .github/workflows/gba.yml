@@ -17,10 +17,8 @@ jobs:
       run: wget https://apt.devkitpro.org/install-devkitpro-pacman
     - name: chmod
       run: chmod +x ./install-devkitpro-pacman
-    - name: fix
-      run: sed -i 's/apt-get install devkitpro-pacman/until apt-get install devkitpro-pacman; do echo "Retrying"; done/g' install-devkitpro-pacman
     - name: devkitpro install
-      run: sudo ./install-devkitpro-pacman
+      run: until sudo ./install-devkitpro-pacman; do echo "Retrying"; done
     - name: install pkg
       run: sudo dkp-pacman -S gba-dev --noconfirm
     - name: add to path

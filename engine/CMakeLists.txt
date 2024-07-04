@@ -48,9 +48,9 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
 		PROPERTIES
 		LANGUAGE OBJC
 	)
-	file(READ "${CMAKE_BINARY_DIR}/_deps/minilua-src/src/minilua.h" TEXT)
+	file(READ "${CMAKE_BINARY_DIR}/_deps/minilua-src/minilua.h" TEXT)
 	string(REPLACE "panic" "lpanic" TEXT "${TEXT}")
-	file(WRITE "${CMAKE_BINARY_DIR}/_deps/minilua-src/src/minilua.h" "${TEXT}")
+	file(WRITE "${CMAKE_BINARY_DIR}/_deps/minilua-src/minilua.h" "${TEXT}")
 	target_link_libraries(${title} PRIVATE "-framework Foundation")
 	target_link_libraries(${title} PRIVATE Cocoa)
 	target_link_libraries(${title} PRIVATE QuartzCore)
