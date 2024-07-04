@@ -46,23 +46,6 @@ static unsigned char* basic_handler(const char* filename, size_t* size) {
 	return out;
 }
 
-static void short_to_float(unsigned char* buffer, const size_t len) {
-	for (size_t i = (len/2)-2; i != SIZE_MAX; i -= 1) {
-		union {
-			uint32_t u32;
-			float f32;
-		} x;
-		x.u32 = (uint16_t)*(int16_t*)(buffer+(i*2)) ^ 0x43808000u;
-		x.f32 = x.f32 - 257.0f;
-		memcpy(buffer+(i*4), &x.f32, sizeof(float));
-	}
-}
-
-#define SHORT_TO_FLOAT(var, size) \
-	REALLOC(var, size*2); \
-	short_to_float(var, size); \
-	size *= 2;
-
 static unsigned char* wav_handler(const char* filename, size_t* size) {
 	unsigned int channels, sampleRate;
 	float* out = drwav_open_file_and_read_pcm_frames_f32(
@@ -71,13 +54,20 @@ static unsigned char* wav_handler(const char* filename, size_t* size) {
 	return (unsigned char*)out;
 }
 
+#define SHORT_TO_FLOAT(var, size) \
+	void* temp = malloc(size*4); \
+	drwav_s16_to_f32(temp, var, size); \
+	free(var); \
+	var = temp; \
+	size *= 4;
+
 static unsigned char* ogg_handler(const char* filename, size_t* size) {
 	unsigned char* out = NULL;
 	int channels, freq;
 	*size = stb_vorbis_decode_filename(filename, &channels, &freq, (short**)&out);
 	assert(channels == 2); assert(freq == 48000);
 	if (*size == -1) return NULL;
-	*size = *size * sizeof(short) * channels;
+	*size = *size * channels; //samples
 	SHORT_TO_FLOAT(out, *size);
 	return out;
 }

@@ -26,7 +26,7 @@ jobs:
     - name: add to path
       run: source /etc/profile.d/devkit-env.sh
     - name: dependencies
-      run: sudo apt-get install libglvnd-dev libxi-dev
+      run: sudo apt-get install libglvnd-dev libxi-dev libxcursor-dev
     - name: mkdir
       run: mkdir build
     - name: configure
