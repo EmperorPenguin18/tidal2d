@@ -6,8 +6,6 @@ include(FetchContent)
 add_compile_options(-Wall -pedantic)
 # For multi-configs like MSVC
 set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE})
-# Allow Objective-C for macOS
-enable_language(OBJC)
 
 # Helper function for header-only libs
 function(fetch_header target name example path url tag repo_path)
