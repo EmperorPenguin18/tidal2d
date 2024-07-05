@@ -52,9 +52,9 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
 	string(REPLACE "panic" "lpanic" TEXT "${TEXT}")
 	file(WRITE "${CMAKE_BINARY_DIR}/_deps/minilua-src/minilua.h" "${TEXT}")
 	target_link_libraries(${title} PRIVATE "-framework Foundation")
-	target_link_libraries(${title} PRIVATE Cocoa)
-	target_link_libraries(${title} PRIVATE QuartzCore)
-	target_link_libraries(${title} PRIVATE OpenGL)
+	target_link_libraries(${title} PRIVATE "-framework Cocoa")
+	target_link_libraries(${title} PRIVATE "-framework QuartzCore")
+	target_link_libraries(${title} PRIVATE "-framework OpenGL")
 endif()
 
 # Output a zipped archive

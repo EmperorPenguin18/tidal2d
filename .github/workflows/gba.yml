@@ -14,15 +14,17 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: download devkitpro
-      run: wget https://apt.devkitpro.org/install-devkitpro-pacman
-    - name: chmod
-      run: chmod +x ./install-devkitpro-pacman
-    - name: devkitpro install
-      run: until sudo ./install-devkitpro-pacman; do echo "Retrying"; done
+      run: wget https://github.com/devkitPro/buildscripts/archive/refs/tags/devkitARM_r63.tar.gz
+    - name: extract
+      run: tar -xvf devkitARM_r63.tar.gz
+    - name: configure
+      run: sed -i 's/=0/=1/g' config.sh.sample; mv config.sh.sample config.sh;
+      working-directory: ./buildscripts-devkitARM_r63
     - name: install pkg
-      run: sudo dkp-pacman -S gba-dev --noconfirm
+      run: sudo ./build-devkit.sh
+      working-directory: ./buildscripts-devkitARM_r63
     - name: add to path
-      run: source /etc/profile.d/devkit-env.sh
+      run: echo "PATH=/opt/devkitpro/tools/bin:$PATH" >> $GITHUB_ENV
     - name: dependencies
       run: sudo apt-get install libglvnd-dev libxi-dev libxcursor-dev libasound2-dev
     - name: mkdir
