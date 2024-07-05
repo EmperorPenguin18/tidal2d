@@ -55,6 +55,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
 	target_link_libraries(${title} PRIVATE "-framework Cocoa")
 	target_link_libraries(${title} PRIVATE "-framework QuartzCore")
 	target_link_libraries(${title} PRIVATE "-framework OpenGL")
+	target_link_libraries(${title} PRIVATE "-framework AudioToolbox")
 endif()
 
 # Output a zipped archive
