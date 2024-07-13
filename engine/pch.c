@@ -1,3 +1,4 @@
+#ifndef GBA
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef _WIN32
@@ -27,3 +28,4 @@
 #define PHYSAC_IMPLEMENTATION
 #define PHYSAC_STANDALONE
 #include <physac.h>
+#endif //GBA

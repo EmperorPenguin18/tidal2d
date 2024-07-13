@@ -12,6 +12,7 @@ static const char* extension(const char* filename) {
 }
 
 static void frame(void) {
+#ifndef GBA
 	const float width = sapp_widthf(), height = sapp_heightf();
 
 	sgp_begin(width, height);
@@ -59,8 +60,10 @@ static void frame(void) {
 	sgl_draw();
 	sg_end_pass();
 	sg_commit();
+#endif //GBA
 }
 
+#ifndef GBA
 static void call_va(const char *sig, ...) {
 	va_list vl;
 	int narg, nres;  /* number of arguments and results */
@@ -98,15 +101,18 @@ static void call_va(const char *sig, ...) {
 
 	va_end(vl);
 }
+#endif //GBA
 
 static void event(const sapp_event* event) {
 	int* type = e.events+event->type;
+#ifndef GBA
 	if (*type) {
 		lua_rawgeti(e.L, LUA_REGISTRYINDEX, *type);
 		lua_pushvalue(e.L, 1);
 		call_va("i", event->key_code);
 		*type = luaL_ref(e.L, LUA_REGISTRYINDEX);
 	}
+#endif //GBA
 }
 
 /*void mix(const void* newbuf, size_t len) {
@@ -131,6 +137,7 @@ static void init(void) {
 		strcmp("svg", extension(data_info+i)) != 0) break;
 	);
 
+#ifndef GBA
 	sg_desc sgdesc = {
 		.environment = sglue_environment(),
 	};
@@ -175,9 +182,11 @@ static void init(void) {
 				fprintf(stderr, "Script failed: %s\n%s\n%s\n", basename(data_info+i), data_array+offset, lua_tostring(e.L, -1));
 		}
 	)
+#endif //GBA
 }
 
 static void cleanup(void) {
+#ifndef GBA
 	for (int i = 0; i < e.ins_num; i++) sg_destroy_image(e.ins[i].image);
 	for (int i = 0; i < _SAPP_EVENTTYPE_NUM; i++) luaL_unref(e.L, LUA_REGISTRYINDEX, e.events[i]);
 	lua_close(e.L);
@@ -187,8 +196,10 @@ static void cleanup(void) {
 	sgp_shutdown();
 	sgl_shutdown();
 	sg_shutdown();
+#endif //GBA
 }
 
+#ifndef GBA
 sapp_desc sokol_main(int argc, char* argv[]) {
 	(void)argc;
 	(void)argv;
@@ -204,3 +215,11 @@ sapp_desc sokol_main(int argc, char* argv[]) {
 		.height = e.win_h,
 	};
 }
+#else //GBA
+int main(int argc, char* argv[]) {
+	init();
+	while (true) frame();
+	cleanup();
+	return 0;
+}
+#endif //GBA

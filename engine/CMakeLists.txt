@@ -8,7 +8,7 @@ set_source_files_properties(
 	COMPILE_OPTIONS "-w"
 )
 
-add_executable(${title} ${engine_sources} ${CMAKE_BINARY_DIR}/data.c)
+add_executable(${title} ${engine_sources} ${CMAKE_BINARY_DIR}/${data})
 add_dependencies(${title} data)
 
 fetch_header(${title} sokol sokol_gfx.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "") # Commit May 6, 2024
@@ -56,6 +56,14 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
 	target_link_libraries(${title} PRIVATE "-framework QuartzCore")
 	target_link_libraries(${title} PRIVATE "-framework OpenGL")
 	target_link_libraries(${title} PRIVATE "-framework AudioToolbox")
+elseif(CMAKE_SYSTEM_NAME MATCHES GBA)
+	add_custom_target(${title}.gba ALL
+		COMMAND arm-none-eabi-objcopy -O binary ${title} ${title}.gba
+		DEPENDS ${title}
+	)
+	add_custom_command(TARGET ${title}.gba POST_BUILD
+		COMMAND gbafix ${title}.gba
+	)
 endif()
 
 # Output a zipped archive

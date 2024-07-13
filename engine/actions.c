@@ -6,6 +6,7 @@
 extern engine e;
 void mix(const void*, size_t);
 
+#ifndef GBA
 int tidal_create(lua_State* L) {
 	if (e.ins_num == NUM_INSTANCES) return luaL_error(L, "reached max instances");
 	e.ins_num++;
@@ -173,3 +174,4 @@ int tidal_quit(lua_State* L) {
 	sapp_quit();
 	return 0;
 }
+#endif //GBA

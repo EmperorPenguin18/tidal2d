@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(tidal2d)
+project(tidal2d C ASM)
 include(FetchContent)
 
 # More warnings
@@ -21,10 +21,11 @@ function(fetch_header target name example path url tag repo_path)
 			${name}
 			GIT_REPOSITORY ${url}
 			GIT_TAG ${tag}
+			EXCLUDE_FROM_ALL
 		)
 		FetchContent_GetProperties(${name})
 		if(NOT ${name}_POPULATED)
-			FetchContent_Populate(${name})
+			FetchContent_MakeAvailable(${name})
 		endif()
 		target_include_directories(${target} PRIVATE "${${name}_SOURCE_DIR}/${repo_path}")
 	endif()
@@ -36,14 +37,23 @@ set(CURRENT_COMPILER "NATIVE")
 set(NATIVE_C_COMPILER CMAKE_C_COMPILER)
 set(HOST_C_COMPILER "")
 set(CROSSCOMPILING ${CMAKE_CROSSCOMPILING})
+set(data "data.s")
+set(flag "s")
 if (NOT HOST_SYSTEM_NAME MATCHES ${CMAKE_SYSTEM_NAME})
 	set(CROSSCOMPILING true)
 	if (HOST_SYSTEM_NAME MATCHES Linux)
 		# Nothing for now
 	elseif (HOST_SYSTEM_NAME MATCHES Emscripten)
 		set(HOST_C_COMPILER "emcc")
+		set(data "data.c")
+		set(flag "c")
 	elseif (HOST_SYSTEM_NAME MATCHES Windows)
 		set(HOST_C_COMPILER "x86_64-w64-mingw32-gcc")
+	elseif (HOST_SYSTEM_NAME MATCHES GBA)
+		set(HOST_C_COMPILER "arm-none-eabi-gcc")
+		set(HOST_C_FLAGS "-mthumb -DGBA")
+		set(data "data.c")
+		set(flag "c")
 	endif()
 endif()
 
@@ -90,17 +100,17 @@ endif()
 
 # Generate data array
 add_custom_command(
-	OUTPUT data.c
+	OUTPUT ${data}
 	COMMAND decoder
-	ARGS ${resources}
+	ARGS -o${flag} ${resources}
 	DEPENDS decoder ${resources}
 	)
 add_custom_target(
 	data
-	DEPENDS data.c
+	DEPENDS ${data}
 	)
 set_source_files_properties(
-	data.c
+	${data}
 	PROPERTIES GENERATED TRUE
 	)
 
