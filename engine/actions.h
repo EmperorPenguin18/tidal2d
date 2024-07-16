@@ -2,6 +2,7 @@
 
 #include <minilua.h>
 
+#ifndef GBA
 int tidal_create(lua_State*);
 int tidal_set_size(lua_State*);
 int tidal_set_sprite(lua_State*);
@@ -36,5 +37,6 @@ static const struct luaL_Reg actions[] = {
 	{"quit", tidal_quit},
 	{NULL, NULL}
 };
+#endif //GBA
 
 #endif

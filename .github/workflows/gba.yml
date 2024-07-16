@@ -26,7 +26,7 @@ jobs:
       run: sudo ./build-devkit.sh
       working-directory: ./buildscripts-devkitARM_r63
     - name: add to path
-      run: echo "PATH=/opt/devkitpro/tools/bin:$PATH" >> $GITHUB_ENV
+      run: echo "PATH=/opt/devkitpro/devkitARM/bin:$PATH" >> $GITHUB_ENV
     - name: mkdir
       run: mkdir build
     - name: configure

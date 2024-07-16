@@ -35,6 +35,10 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Emscripten)
 	target_link_options(${title} PRIVATE "-sFULL_ES3")
 	target_link_options(${title} PRIVATE "-sTOTAL_MEMORY=67108864")
 	#target_link_options(${title} PRIVATE "-sALLOW_MEMORY_GROWTH")
+	file(READ "${CMAKE_BINARY_DIR}/data.s" TEXT)
+	string(REPLACE "data_array:" "\t.size\tdata_array, 0\ndata_array:" TEXT "${TEXT}")
+	string(REPLACE "data_info:" "\t.size\tdata_info, 0\ndata_info:" TEXT "${TEXT}")
+	file(WRITE "${CMAKE_BINARY_DIR}/data.s" "${TEXT}")
 elseif(CMAKE_SYSTEM_NAME MATCHES Windows)
 	set_target_properties(${title} PROPERTIES SUFFIX ".exe")
 	target_link_options(${title} PRIVATE "-static")
@@ -57,11 +61,11 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
 	target_link_libraries(${title} PRIVATE "-framework OpenGL")
 	target_link_libraries(${title} PRIVATE "-framework AudioToolbox")
 elseif(CMAKE_SYSTEM_NAME MATCHES GBA)
-	add_custom_target(${title}.gba ALL
-		COMMAND arm-none-eabi-objcopy -O binary ${title} ${title}.gba
-		DEPENDS ${title}
+	set_target_properties(${title} PROPERTIES SUFFIX ".gba")
+	add_custom_command(TARGET ${title} POST_BUILD
+		COMMAND arm-none-eabi-objcopy -O binary ${title}.gba ${title}.gba
 	)
-	add_custom_command(TARGET ${title}.gba POST_BUILD
+	add_custom_command(TARGET ${title} POST_BUILD
 		COMMAND gbafix ${title}.gba
 	)
 endif()
