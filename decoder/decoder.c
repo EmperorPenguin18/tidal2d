@@ -106,9 +106,11 @@ static int args(const int argc, char** argv, mode* m) {
 			break; \
 	}
 
-#define WRITE_CHECK(text, out, err) \
-	err = fputs(text, out); \
-	CHECK_ERROR(err > 0, "couldn't write to file");
+#define WRITE_CHECK(text, out) \
+{ \
+	int err = fputs(text, out); \
+	CHECK_ERROR(err > 0, "couldn't write to file"); \
+}
 
 #define PRINT_BYTE(file, byte, m, lc) \
 { \
@@ -140,12 +142,11 @@ int main(int argc, char** argv) {
 	file_table* ft = sort(argc-n, argv+n);
 	CHECK_ERROR(ft, "file table failed to initialize");
 	FILE* out; OPEN_FILE(m, out);
-	int err;
 	SWITCH_MODE(m,
 		WRITE_CHECK("extern const unsigned char data_array[];\n\nconst unsigned char data_array[] = {",
-			out, err),
+			out),
 		WRITE_CHECK("\t.globl\tdata_array\n\t.data\n#if defined(EMSCRIPTEN)\n\t.size\tdata_array, 0\n#endif\ndata_array:",
-			out, err)
+			out)
 	);
 	int lc = 0;
 	for (int i = 0; ft[i].name; i++) {
@@ -164,9 +165,9 @@ int main(int argc, char** argv) {
 	}
 	SWITCH_MODE(m,
 		WRITE_CHECK("\n};\n\nextern const unsigned char data_info[];\n\nconst unsigned char data_info[] = {",
-			out, err),
+			out),
 		WRITE_CHECK("\n\t.globl\tdata_info\n#if defined(EMSCRIPTEN)\n\t.size\tdata_info, 0\n#endif\ndata_info:",
-			out, err)
+			out)
 	);
 	lc = 0;
 	for (int i = 0; ft[i].name; i++) {
@@ -177,10 +178,10 @@ int main(int argc, char** argv) {
 			PRINT_BYTE(out, (uint8_t)((ft[i].size >> (j*8)) & 0xff), m, lc);
 	}
 	SWITCH_MODE(m,
-		WRITE_CHECK("0x0\n};", out, err),
+		WRITE_CHECK("0x0\n};", out),
 		PRINT_BYTE(out, 0, m, lc)
 	);
-	WRITE_CHECK("\n", out, err);
+	WRITE_CHECK("\n", out);
 	CHECK_ERROR(!fclose(out), "couldn't close file");
 	free(ft);
 	return EXIT_SUCCESS;
