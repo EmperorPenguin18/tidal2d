@@ -95,7 +95,7 @@ if (NOT "${resource_path}" STREQUAL "")
 endif()
 
 # Generate data array
-set(data "data.s")
+set(data "data.S")
 set(flag "s")
 add_custom_command(
 	OUTPUT ${data}
