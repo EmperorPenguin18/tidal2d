@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
 	SWITCH_MODE(m,
 		WRITE_CHECK("extern const unsigned char data_array[];\n\nconst unsigned char data_array[] = {",
 			out),
-		WRITE_CHECK("\t.globl\tdata_array\n#if defined(__clang__)\n\t.data\n\t.size\tdata_array, 0\n#else\n\t.section\t.rodata\n#endif\ndata_array:",
+		WRITE_CHECK("\t.globl\tdata_array\n#if defined(__clang__)\n\t.data\n#else\n\t.section\t.rodata\n#endif\n#if defined(EMSCRIPTEN)\n\t.size\tdata_array, 0\n#endif\ndata_array:",
 			out)
 	);
 	int lc = 0;
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
 	SWITCH_MODE(m,
 		WRITE_CHECK("\n};\n\nextern const unsigned char data_info[];\n\nconst unsigned char data_info[] = {",
 			out),
-		WRITE_CHECK("\n\t.globl\tdata_info\n#if defined(__clang__)\n\t.size\tdata_info, 0\n#endif\ndata_info:",
+		WRITE_CHECK("\n\t.globl\tdata_info\n#if defined(EMSCRIPTEN)\n\t.size\tdata_info, 0\n#endif\ndata_info:",
 			out)
 	);
 	lc = 0;
