@@ -61,9 +61,9 @@ elseif(CMAKE_SYSTEM_NAME MATCHES GBA)
 	add_custom_command(TARGET ${title} POST_BUILD
 		COMMAND arm-none-eabi-objcopy -O binary ${title}.gba ${title}.gba
 	)
-	add_custom_command(TARGET ${title} POST_BUILD
-		COMMAND gbafix ${title}.gba
-	)
+	#add_custom_command(TARGET ${title} POST_BUILD
+	#COMMAND gbafix ${title}.gba
+	#)
 endif()
 
 # Output a zipped archive

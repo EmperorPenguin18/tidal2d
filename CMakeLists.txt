@@ -6,7 +6,6 @@ include(FetchContent)
 add_compile_options(-Wall -pedantic)
 # For multi-configs like MSVC
 set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE})
-set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -x assembler-with-cpp")
 
 # Helper function for header-only libs
 function(fetch_header target name example path url tag repo_path)

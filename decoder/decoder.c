@@ -109,7 +109,7 @@ static int args(const int argc, char** argv, mode* m) {
 #define WRITE_CHECK(text, out) \
 { \
 	int err = fputs(text, out); \
-	CHECK_ERROR(err > 0, "couldn't write to file"); \
+	/*CHECK_ERROR(err > 0, "couldn't write to file");*/ \
 }
 
 #define PRINT_BYTE(file, byte, m, lc) \
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
 	SWITCH_MODE(m,
 		WRITE_CHECK("extern const unsigned char data_array[];\n\nconst unsigned char data_array[] = {",
 			out),
-		WRITE_CHECK("\t.globl\tdata_array\n\t.data\n#if defined(EMSCRIPTEN)\n\t.size\tdata_array, 0\n#endif\ndata_array:",
+		WRITE_CHECK("\t.globl\tdata_array\n#if defined(EMSCRIPTEN)\n\t.data\n\t.size\tdata_array, 0\n#else\n\t.section\t.rodata\n#endif\ndata_array:",
 			out)
 	);
 	int lc = 0;
@@ -163,6 +163,7 @@ int main(int argc, char** argv) {
 		}
 		free(buf);
 	}
+	PRINT_BYTE(out, 0, m, lc); // not sure if this helps
 	SWITCH_MODE(m,
 		WRITE_CHECK("\n};\n\nextern const unsigned char data_info[];\n\nconst unsigned char data_info[] = {",
 			out),
