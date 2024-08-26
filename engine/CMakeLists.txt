@@ -31,10 +31,15 @@ if (CMAKE_SYSTEM_NAME MATCHES Linux)
 elseif(CMAKE_SYSTEM_NAME MATCHES Emscripten)
 	set_target_properties(${title} PROPERTIES OUTPUT_NAME "index")
 	set_target_properties(${title} PROPERTIES SUFFIX ".html")
-	#target_link_options(${title} PRIVATE "--shell-file ${CMAKE_SOURCE_DIR}/index.html")
+	file(WRITE "${CMAKE_BINARY_DIR}/shell.html" "${GENERATED_HTML}")
+	set_target_properties(${title} PROPERTIES
+		LINK_FLAGS "--shell-file ${CMAKE_BINARY_DIR}/shell.html"
+	)
 	target_link_options(${title} PRIVATE "-sFULL_ES3")
 	target_link_options(${title} PRIVATE "-sTOTAL_MEMORY=67108864")
 	#target_link_options(${title} PRIVATE "-sALLOW_MEMORY_GROWTH")
+	install(FILES ${CMAKE_BINARY_DIR}/engine/index.wasm DESTINATION .)
+	install(FILES ${CMAKE_BINARY_DIR}/engine/index.js DESTINATION .)
 elseif(CMAKE_SYSTEM_NAME MATCHES Windows)
 	set_target_properties(${title} PROPERTIES SUFFIX ".exe")
 	target_link_options(${title} PRIVATE "-static")
@@ -67,10 +72,10 @@ elseif(CMAKE_SYSTEM_NAME MATCHES GBA)
 endif()
 
 # Output a zipped archive
-set(ZIP_FILE ${CMAKE_BINARY_DIR}/${title}_${HOST_SYSTEM_NAME}.tar.gz)
-add_custom_command(
-	TARGET ${title}
-	POST_BUILD
-	COMMAND ${CMAKE_COMMAND}
-	ARGS -E tar "cfz" "${ZIP_FILE}" "$<TARGET_FILE:${title}>"
-	)
+install(TARGETS ${title} RUNTIME DESTINATION .)
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_NAME "${title}")
+set(CPACK_PACKAGE_VERSION "")
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CMAKE_SYSTEM_NAME}")
+include(CPack)

@@ -115,5 +115,39 @@ set_source_files_properties(
 # Allow for custom game titles
 set(title "game" CACHE STRING "")
 
+# Minimal html file
+set(GENERATED_HTML "<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"utf-8\">
+    <title>${title}</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: black; }
+        canvas { width: 100%; height: auto; max-height: 100vh; }
+    </style>
+</head>
+<body>
+    <canvas id=\"canvas\"></canvas>
+    <script>
+        function resizeCanvas() {
+            var canvas = document.getElementById('canvas');
+            var aspectRatio = canvas.width / canvas.height;
+            if (window.innerWidth / window.innerHeight > aspectRatio) {
+                // window is wider than canvas aspect ratio
+                canvas.style.height = '100vh';
+                canvas.style.width = 'auto';
+            } else {
+                // window is taller than canvas aspect ratio
+                canvas.style.width = '100vw';
+                canvas.style.height = 'auto';
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', resizeCanvas);
+    </script>
+    {{{ SCRIPT }}}
+</body>
+</html>")
+
 # Build game
 add_subdirectory(engine)
