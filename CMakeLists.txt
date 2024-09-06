@@ -100,7 +100,7 @@ set(flag "s")
 add_custom_command(
 	OUTPUT ${data}
 	COMMAND decoder
-	ARGS -o${flag} ${resources}
+	ARGS -o${flag} -p${real_path}/ ${resources}
 	DEPENDS decoder ${resources}
 	)
 add_custom_target(

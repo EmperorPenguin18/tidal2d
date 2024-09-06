@@ -78,18 +78,19 @@ static file_table* sort(const int argc, char** const argv) {
 }
 
 // look for what the desired output lang is
-static int args(const int argc, char** argv, mode* m) {
+static int args(const int argc, char** argv, mode* m, char** p) {
 	int i;
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] != '-') break;
-		if (argv[i][1] != 'o') break;
-		int j;
-		for (j = 2; j < strlen(argv[i]); j++) if (argv[i][j] != ' ') break;
-		if (argv[i][j] == 'c') {
-			*m = C;
-		} else if (argv[i][j] == 's') {
-			*m = ASM;
-		} else break;
+		if (argv[i][1] == 'o') {
+			if (argv[i][2] == 'c') {
+				*m = C;
+			} else if (argv[i][2] == 's') {
+				*m = ASM;
+			} else return -1;
+		} else if (argv[i][1] == 'p') {
+			*p = argv[i]+2;
+		} else return -1;
 	}
 	return i;
 }
@@ -138,7 +139,10 @@ static int args(const int argc, char** argv, mode* m) {
 
 int main(int argc, char** argv) {
 	mode m = 0;
-	const int n = args(argc, argv, &m);
+	char* p = NULL;
+	const int n = args(argc, argv, &m, &p);
+	CHECK_ERROR(n >= 0, "failed to parse args");
+	const size_t len_p = strlen(p);
 	file_table* ft = sort(argc-n, argv+n);
 	CHECK_ERROR(ft, "file table failed to initialize");
 	FILE* out; OPEN_FILE(m, out);
@@ -172,8 +176,10 @@ int main(int argc, char** argv) {
 	);
 	lc = 0;
 	for (int i = 0; ft[i].name; i++) {
-		for (int j = 0; j < strlen(ft[i].name)+1; j++) { // +1 for null byte
-			PRINT_BYTE(out, ft[i].name[j], m, lc);
+		const char* name = (strncmp(ft[i].name, p, len_p) == 0) ?
+			ft[i].name+len_p : ft[i].name;
+		for (int j = 0; j < strlen(name)+1; j++) { // +1 for null byte
+			PRINT_BYTE(out, name[j], m, lc);
 		}
 		for (int j = 0; j < B_IN_SZ; j++)
 			PRINT_BYTE(out, (uint8_t)((ft[i].size >> (j*8)) & 0xff), m, lc);
