@@ -73,13 +73,13 @@ static unsigned char* ogg_handler(const char* filename, size_t* size) {
 	return out;
 }
 
-static unsigned char* txt_handler(const char* filename, size_t* size) {
+/*static unsigned char* txt_handler(const char* filename, size_t* size) {
 	unsigned char* out = basic_handler(filename, size);
 	REALLOC(out, (*size)+1);
 	out[*size] = '\0';
 	*size = (*size)+1;
 	return out;
-}
+}*/
 
 static unsigned char* ase_handler(const char* filename, size_t* size) {
 	ase_t* ase = cute_aseprite_load_from_file(filename, NULL);
@@ -102,7 +102,6 @@ static unsigned char* (*const handlers[])(const char*, size_t*) = {
 	&basic_handler, // ttf
 	&wav_handler,
 	&ogg_handler,
-	&txt_handler, // lua
 	&ase_handler,
 	&ase_handler  // aseprite
 };

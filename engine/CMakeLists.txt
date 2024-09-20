@@ -1,21 +1,31 @@
 use_host_compiler()
 
-file(GLOB_RECURSE engine_sources *.c)
-
 set_source_files_properties(
 	"pch.c"
 	PROPERTIES
 	COMPILE_OPTIONS "-w"
 )
 
-add_executable(${title} ${engine_sources} ${CMAKE_BINARY_DIR}/${data})
+add_executable(${title} engine.c actions.c pch.c ${CMAKE_BINARY_DIR}/${data})
 add_dependencies(${title} data)
+list(LENGTH scripts NMOD)
+target_compile_definitions(${title} PRIVATE NMOD=${NMOD})
+
+foreach(script ${scripts})
+	get_filename_component(scriptname ${script} NAME)
+	add_library(${scriptname} OBJECT wrapper.c)
+	target_link_libraries(${title} PRIVATE ${scriptname})
+	target_compile_definitions(${scriptname} PRIVATE FILENAME="${script}")
+	add_custom_target(force_rebuild ALL
+		DEPENDS ${script}
+	)
+	add_dependencies(${scriptname} force_rebuild)
+endforeach(script ${scripts})
 
 fetch_header(${title} sokol sokol_gfx.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "") # Commit May 6, 2024
 fetch_header(${title} sokol sokol_gl.h /usr/include https://github.com/floooh/sokol 55bc9cf3fa4051d485d10412c75c893c3135e885 "util") # Commit May 6, 2024
 fetch_header(${title} sokol_gp sokol_gp.h /usr/include https://github.com/edubart/sokol_gp a6ce39f93fb2da2c47b70cdd4d1c0a35c0e756ef "") # Commit Mar 22, 2024
 fetch_header(${title} physac physac.h /usr/include https://github.com/victorfisac/Physac 999bc37eccdde91e8b1cc34b2fb00ce702a14928 "src") # Commit Aug 17, 2024
-fetch_header(${title} minilua minilua.h /usr/include https://github.com/edubart/minilua 79a00fab1639517de38a372db9e60fd6cc730d69 "") # v5.4.6
 fetch_header(${title} fontstash fontstash.h /usr/include https://github.com/memononen/fontstash b5ddc9741061343740d85d636d782ed3e07cf7be "src") # Commit Apr 22, 2019
 fetch_header(${title} glibc force_link_glibc_2.23.h /usr/include https://github.com/wheybags/glibc_version_header 60d54829f34f21dc440126ad5630e6a9789a48b2 "version_headers/x64") # Commit May 3, 2019
 
@@ -53,9 +63,6 @@ elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
 		PROPERTIES
 		LANGUAGE OBJC
 	)
-	file(READ "${CMAKE_BINARY_DIR}/_deps/minilua-src/minilua.h" TEXT)
-	string(REPLACE "panic" "lpanic" TEXT "${TEXT}")
-	file(WRITE "${CMAKE_BINARY_DIR}/_deps/minilua-src/minilua.h" "${TEXT}")
 	target_link_libraries(${title} PRIVATE "-framework Foundation")
 	target_link_libraries(${title} PRIVATE "-framework Cocoa")
 	target_link_libraries(${title} PRIVATE "-framework QuartzCore")

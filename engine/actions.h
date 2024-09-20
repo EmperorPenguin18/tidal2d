@@ -1,42 +1,22 @@
 #ifndef __ACTIONS_H__
 #define __ACTIONS_H__
 
-#include <minilua.h>
-
-#define FUNC_DEF(NAME) int tidal_##NAME(lua_State*);
-
-#define FUNC_ENTRY(NAME) { #NAME, tidal_##NAME },
-
-#define FUNC_LIST \
-	X(create) \
-	X(set_size) \
-	X(set_sprite) \
-	X(set_shape) \
-	X(set_gravity) \
-	X(set_pos) \
-	X(set_font) \
-	X(set_text) \
-	X(set_music) \
-	X(set_cb_keydown) \
-	X(set_background_colour) \
-	X(set_font_colour) \
-	X(set_font_size) \
-	X(set_rotation) \
-	X(quit) \
-
-#ifndef GBA
-
-#define X(name) FUNC_DEF(name)
-FUNC_LIST
-#undef X
-
-#define X(name) FUNC_ENTRY(name)
-static const struct luaL_Reg actions[] = { \
-	FUNC_LIST
-	{NULL, NULL} \
-};
-#undef X
-
-#endif //GBA
+typedef struct actions_t {
+	int (*create)();
+	void (*set_size)(const int, const int, const int);
+	void (*set_sprite)(const int, const char*);
+	void (*set_shape)(const int, const char*);
+	void (*set_gravity)(const float, const float);
+	void (*set_pos)(const int, const float, const float);
+	void (*set_font)(const int, const char*);
+	void (*set_text)(const int, const char*, ...);
+	void (*set_music)(const char*);
+	void (*set_cb_keydown)(void (*)(const int));
+	void (*set_background_colour)(const int, const int, const int, const int);
+	void (*set_font_colour)(const int, const int, const int, const int, const int);
+	void (*set_font_size)(const int, const float);
+	void (*set_rotation)(const int, const float);
+	void (*quit)();
+} actions;
 
 #endif //__ACTIONS_H__

@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 #include "common.h"
 #include "engine.h"
-#include "actions.h"
 
 engine e; // global state
 
@@ -63,56 +63,8 @@ static void frame(void) {
 #endif //GBA
 }
 
-#ifndef GBA
-static void call_va(const char *sig, ...) {
-	va_list vl;
-	int narg, nres;  /* number of arguments and results */
-
-	va_start(vl, sig);
-
-	/* push arguments */
-	narg = 0;
-	while (*sig) {  /* push arguments */
-		switch (*sig++) {
-
-		case 'd':  /* double argument */
-			lua_pushnumber(e.L, va_arg(vl, double));
-			break;
-
-		case 'i':  /* int argument */
-			lua_pushnumber(e.L, va_arg(vl, int));
-			break;
-
-		case 's':  /* string argument */
-			lua_pushstring(e.L, va_arg(vl, char *));
-			break;
-
-		default:
-			luaL_error(e.L, "invalid option (%c)", *(sig - 1));
-		}
-		narg++;
-		luaL_checkstack(e.L, 1, "too many arguments");
-	}
-
-	/* do the call */
-	nres = strlen(sig);  /* number of expected results */
-	if (lua_pcall(e.L, narg, nres, 0) != 0)  /* do the call */
-		luaL_error(e.L, "error running callback: %s", lua_tostring(e.L, -1));
-
-	va_end(vl);
-}
-#endif //GBA
-
 static void event(const sapp_event* event) {
-	int* type = e.events+event->type;
-#ifndef GBA
-	if (*type) {
-		lua_rawgeti(e.L, LUA_REGISTRYINDEX, *type);
-		lua_pushvalue(e.L, 1);
-		call_va("i", event->key_code);
-		*type = luaL_ref(e.L, LUA_REGISTRYINDEX);
-	}
-#endif //GBA
+	if (e.events[event->type]) e.events[event->type](event->key_code);
 }
 
 /*void mix(const void* newbuf, size_t len) {
@@ -128,7 +80,15 @@ static void stream_cb(float* buffer, int num_frames, int num_channels) {
 	if (e.music_pos >= e.music_len) e.music_pos = 0;
 }
 
+void register_script(void (*script)()) {
+	static int counter = 0;
+	e.scripts[counter] = script;
+	counter++;
+}
+
 static void init(void) {
+	srand(time(NULL));
+
 	DATA_LOOP(e.array_size,;);
 	DATA_LOOP(e.img_end, // works because images are at beginning of array
 		if (strcmp("bmp", extension(data_info+i)) != 0 &&
@@ -172,24 +132,13 @@ static void init(void) {
 
 	InitPhysics();
 
-	e.L = luaL_newstate();
-	luaL_openlibs(e.L);
-	luaL_newlib(e.L, actions);
-	lua_setglobal(e.L, "tidal");
-	DATA_LOOP(offset,
-		if (strcmp(extension(data_info+i), "lua") == 0) {
-			if (luaL_dostring(e.L, (const char*)data_array+offset) != 0) // ignore warning
-				fprintf(stderr, "Script failed: %s\n%s\n%s\n", basename(data_info+i), data_array+offset, lua_tostring(e.L, -1));
-		}
-	)
+	for (int i = 0; i < NMOD; i++) e.scripts[i]();
 #endif //GBA
 }
 
 static void cleanup(void) {
 #ifndef GBA
 	for (int i = 0; i < e.ins_num; i++) sg_destroy_image(e.ins[i].image);
-	for (int i = 0; i < _SAPP_EVENTTYPE_NUM; i++) luaL_unref(e.L, LUA_REGISTRYINDEX, e.events[i]);
-	lua_close(e.L);
 	ClosePhysics();
 	saudio_shutdown();
 	sfons_destroy(e.fs);

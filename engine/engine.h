@@ -1,8 +1,8 @@
 #ifndef __ENGINE_H__
 #define __ENGINE_H__
 
-#include <stdbool.h>
-#define _STDBOOL_H
+//#include <stdbool.h>
+//#define _STDBOOL_H
 
 #include <fontstash.h>
 #include <sokol_gfx.h>
@@ -14,17 +14,20 @@
 #include <sokol_audio.h>
 #define PHYSAC_STANDALONE
 #include <physac.h>
-#include <minilua.h>
 
 #define NUM_INSTANCES PHYSAC_MAX_BODIES
 
+#ifndef NMOD
+#define NMOD 0
+#endif
+
 typedef struct engine {
-	lua_State* L;
+	void (*scripts[NMOD])();
 	FONScontext* fs;
 	float win_w, win_h;
 	uint64_t music_offset, music_pos, music_len;
 	uint64_t array_size, img_end;
-	int events[_SAPP_EVENTTYPE_NUM];
+	void (*events[_SAPP_EVENTTYPE_NUM])(const int);
 	struct {
 		float r, g, b, a;
 	} bkg_col;

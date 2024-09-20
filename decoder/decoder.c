@@ -41,7 +41,6 @@ static int ext_cmp(const char* ext1, const char* ext2) {
 		{"ttf", 1},
 		{"wav", 2},
 		{"ogg", 2},
-		{"lua", 3},
 		{"ase", 0},
 		{"aseprite", 0},
 		{NULL, -1}
@@ -149,7 +148,7 @@ int main(int argc, char** argv) {
 	SWITCH_MODE(m,
 		WRITE_CHECK("extern const unsigned char data_array[];\n\nconst unsigned char data_array[] = {",
 			out),
-		WRITE_CHECK("\t.globl\tdata_array\n#if defined(__clang__)\n\t.data\n#else\n\t.section\t.rodata\n#endif\n#if defined(EMSCRIPTEN)\n\t.size\tdata_array, 0\n#endif\ndata_array:",
+		WRITE_CHECK("#ifdef __APPLE__\n\t#define GLOBAL(name) _##name\n#else\n\t#define GLOBAL(name) name\n#endif\n\t.globl\tGLOBAL(data_array)\n#if defined(__clang__)\n\t.data\n#else\n\t.section\t.rodata\n#endif\n#if defined(EMSCRIPTEN)\n\t.size\tGLOBAL(data_array), 0\n#endif\nGLOBAL(data_array):",
 			out)
 	);
 	int lc = 0;
@@ -171,7 +170,7 @@ int main(int argc, char** argv) {
 	SWITCH_MODE(m,
 		WRITE_CHECK("\n};\n\nextern const unsigned char data_info[];\n\nconst unsigned char data_info[] = {",
 			out),
-		WRITE_CHECK("\n\t.globl\tdata_info\n#if defined(EMSCRIPTEN)\n\t.size\tdata_info, 0\n#endif\ndata_info:",
+		WRITE_CHECK("\n\t.globl\tGLOBAL(data_info)\n#if defined(EMSCRIPTEN)\n\t.size\tGLOBAL(data_info), 0\n#endif\nGLOBAL(data_info):",
 			out)
 	);
 	lc = 0;

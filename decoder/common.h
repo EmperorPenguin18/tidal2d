@@ -18,7 +18,6 @@ static const char* valid_extensions[] = {
 	"ttf",
 	"wav",
 	"ogg",
-	"lua",
 	"ase",
 	"aseprite",
 	NULL,

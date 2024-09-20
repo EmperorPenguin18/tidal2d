@@ -1,29 +1,26 @@
 #include "common.h"
 #include "engine.h"
+#include "actions.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 extern engine e;
 void mix(const void*, size_t);
 
-#ifndef GBA
-int tidal_create(lua_State* L) {
-	if (e.ins_num == NUM_INSTANCES) return luaL_error(L, "reached max instances");
+int tidal_create() {
+	if (e.ins_num == NUM_INSTANCES) return -1;
 	e.ins_num++;
-	lua_pushinteger(L, e.ins_num-1);
-	return 1;
+	return e.ins_num-1;
 }
 
-int tidal_set_size(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	e.ins[index].rect.dst.w = luaL_checknumber(L, 2);
-	e.ins[index].rect.dst.h = luaL_checknumber(L, 3);
-	return 0;
+void tidal_set_size(const int index, const int w, const int h) {
+	e.ins[index].rect.dst.w = w;
+	e.ins[index].rect.dst.h = h;
 }
 
-int tidal_set_sprite(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	const char* name = luaL_checkstring(L, 2);
+void tidal_set_sprite(const int index, const char* name) {
 	sgp_rect* dst = &e.ins[index].rect.dst;
 
 	uint64_t offset;
@@ -51,12 +48,9 @@ int tidal_set_sprite(lua_State* L) {
 	e.ins[index].rect.src.y = 0;
 	e.ins[index].rect.src.w = dst->w;
 	e.ins[index].rect.src.h = dst->h;
-	return 0;
 }
 
-int tidal_set_shape(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	const char* shape = luaL_checkstring(L, 2);
+void tidal_set_shape(const int index, const char* shape) {
 	PhysicsBody body;
 	if ((body = GetPhysicsBody(index))) DestroyPhysicsBody(body);
 	if (strcmp(shape, "box") == 0) {
@@ -70,44 +64,37 @@ int tidal_set_shape(lua_State* L) {
 		body->enabled = false;
 	// add more shapes
 	} else {
-		return luaL_error(L, "incorrect shape name");
+		fprintf(stderr, "incorrect shape name\n");
 	}
-	return 0;
 }
 
-int tidal_set_gravity(lua_State* L) {
-	float x = luaL_checknumber(L, 1);
-	float y = luaL_checknumber(L, 2);
+void tidal_set_gravity(const float x, const float y) {
 	SetPhysicsGravity(x, y);
-	return 0;
 }
 
-int tidal_set_pos(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	e.ins[index].rect.dst.x = luaL_checknumber(L, 2);
-	e.ins[index].rect.dst.y = luaL_checknumber(L, 3);
-	return 0;
+void tidal_set_pos(const int index, const float x, const float y) {
+	e.ins[index].rect.dst.x = x;
+	e.ins[index].rect.dst.y = y;
 }
 
-int tidal_set_font(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	const char* font = luaL_checkstring(L, 2);
+void tidal_set_font(const int index, const char* font) {
 	e.ins[index].font = fonsGetFontByName(e.fs, font);
 	e.ins[index].font_size = 16.0f;
 	e.ins[index].font_col = sfons_rgba(0, 0, 0, 255);
-	return 0;
 }
 
-int tidal_set_text(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	const char* string = luaL_checkstring(L, 2);
-	if (strlen(string) > 63) return luaL_error(L, "text too long");
-	strcpy(e.ins[index].str, string);
-	return 0;
+void tidal_set_text(const int index, const char* format, ...) {
+	va_list arg;
+	va_start(arg, format);
+	int err = vsnprintf(e.ins[index].str, 64, format, arg);
+	if (err > 63 || err < 0) {
+		fprintf(stderr, "text format error\n");
+		exit(EXIT_FAILURE);
+	}
+	va_end(arg);
 }
 
-int tidal_set_music(lua_State* L) {
-	const char* name = luaL_checkstring(L, 1);
+void tidal_set_music(const char* name) {
 	uint64_t offset;
 	DATA_LOOP(offset,
 		if (strcmp(name, basename(data_info+i)) == 0) {
@@ -117,61 +104,62 @@ int tidal_set_music(lua_State* L) {
 			break;
 		}
 	);
-	return 0;
 }
 
-static void register_callback(lua_State* L, sapp_event_type type) {
-	e.events[type] = luaL_ref(L, LUA_REGISTRYINDEX);
+void tidal_set_cb_keydown(void (*func)(const int)) {
+	if (!func) {
+		fprintf(stderr, "must call back to a function\n");
+		exit(EXIT_FAILURE);
+	}
+	e.events[SAPP_EVENTTYPE_KEY_DOWN] = func;
 }
 
-int tidal_set_cb_keydown(lua_State* L) {
-	if (!lua_isfunction(L, 1)) return luaL_error(L, "must call back to a function");
-	register_callback(L, SAPP_EVENTTYPE_KEY_DOWN);
-	return 0;
-}
-
-int tidal_set_background_colour(lua_State* L) {
-	int r = luaL_checkinteger(L, 1);
-	int g = luaL_checkinteger(L, 2);
-	int b = luaL_checkinteger(L, 3);
-	int a = luaL_checkinteger(L, 4);
-	if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
-		return luaL_error(L, "invalid colour values");
+void tidal_set_background_colour(const int r, const int g, const int b, const int a) {
+	if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
+		fprintf(stderr, "invalid colour values\n");
+		exit(EXIT_FAILURE);
+	}
 	e.bkg_col.r = (float)r / 255.0f;
 	e.bkg_col.g = (float)g / 255.0f;
 	e.bkg_col.b = (float)b / 255.0f;
 	e.bkg_col.a = (float)a / 255.0f;
-	return 0;
 }
 
-int tidal_set_font_colour(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	int r = luaL_checkinteger(L, 2);
-	int g = luaL_checkinteger(L, 3);
-	int b = luaL_checkinteger(L, 4);
-	int a = luaL_checkinteger(L, 5);
-	if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
-		return luaL_error(L, "invalid colour values");
+void tidal_set_font_colour(const int index, const int r, const int g, const int b, const int a) {
+	if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
+		fprintf(stderr, "invalid colour values\n");
+		exit(EXIT_FAILURE);
+	}
 	e.ins[index].font_col = sfons_rgba(r, g, b, a);
-	return 0;
 }
 
-int tidal_set_font_size(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	float size = luaL_checknumber(L, 2);
-	if (size <= 0) return luaL_error(L, "font size must be greater than 0");
+void tidal_set_font_size(const int index, const float size) {
+	if (size <= 0) fprintf(stderr, "font size must be greater than 0\n");
 	e.ins[index].font_size = size;
-	return 0;
 }
 
-int tidal_set_rotation(lua_State* L) {
-	int index = luaL_checkinteger(L, 1);
-	e.ins[index].orient = luaL_checknumber(L, 2) * M_PI / 180;
-	return 0;
+void tidal_set_rotation(const int index, const float orient) {
+	e.ins[index].orient = orient * M_PI / 180;
 }
 
-int tidal_quit(lua_State* L) {
+void tidal_quit() {
 	sapp_quit();
-	return 0;
 }
-#endif //GBA
+
+const actions tidal = {
+	.create = tidal_create,
+	.set_size = tidal_set_size,
+	.set_sprite = tidal_set_sprite,
+	.set_shape = tidal_set_shape,
+	.set_gravity = tidal_set_gravity,
+	.set_pos = tidal_set_pos,
+	.set_font = tidal_set_font,
+	.set_text = tidal_set_text,
+	.set_music = tidal_set_music,
+	.set_cb_keydown = tidal_set_cb_keydown,
+	.set_background_colour = tidal_set_background_colour,
+	.set_font_colour = tidal_set_font_colour,
+	.set_font_size = tidal_set_font_size,
+	.set_rotation = tidal_set_rotation,
+	.quit = tidal_quit,
+};

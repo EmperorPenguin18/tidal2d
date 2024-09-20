@@ -14,7 +14,8 @@
 	}
 
 static const char* basename(const char* filename) {
-	return strrchr(filename, '/')+1;
+	const char* str = strrchr(filename, '/')+1;
+	return (str > 1) ? str : filename;
 }
 
 #define DATA_LOOP(offset, ...) \
